@@ -4,11 +4,29 @@
 #include "claire_parse_arg.hpp"
 // #include "claire_annotation_structs.hpp"
 
+#include <charconv>
 #include <cstddef>
 #include <meta>
 #include <optional>
+#include <vector>
+#include <ranges>
 
 namespace claire {
+
+template <std::meta::info i, typename T>
+consteval const char *extract_text_annotation() {
+  constexpr static auto shortnames = std::define_static_array(
+      std::meta::annotations_of_with_type(i, ^^const T));
+
+  template for (constexpr auto name : shortnames) {
+    constexpr const char *txt = std::meta::extract<const T>(name).text;
+    if (txt) {
+      return txt;
+    }
+  }
+
+  return std::define_static_string("");
+}
 
 struct Description {
   const char *text;
@@ -16,6 +34,10 @@ struct Description {
   // compiler will freak out if you don't define it
   consteval Description(const std::string_view txt)
       : text(std::define_static_string(txt)) {}
+  template <std::meta::info i>
+  consteval static const char *extract() {
+    return extract_text_annotation<i, Description>();
+  }
 };
 
 struct Shortname {
@@ -24,36 +46,11 @@ struct Shortname {
   // compiler will freak out if you don't define it
   consteval Shortname(const std::string_view txt)
       : text(std::define_static_string(txt)) {}
+  template <std::meta::info i>
+  consteval static const char *extract() {
+    return extract_text_annotation<i, Shortname>();
+  }
 };
-
-template <std::meta::info i> constexpr const char *extract_description() {
-  constexpr static auto descriptions = std::define_static_array(
-      std::meta::annotations_of_with_type(i, ^^const Description));
-
-  template for (constexpr auto desc : descriptions) {
-    constexpr const char *txt =
-        std::meta::extract<const Description>(desc).text;
-    if (txt) {
-      return txt;
-    }
-  }
-
-  return std::define_static_string("");
-}
-
-template <std::meta::info i> constexpr const char *extract_shortname() {
-  constexpr static auto shortnames = std::define_static_array(
-      std::meta::annotations_of_with_type(i, ^^const Shortname));
-
-  template for (constexpr auto name : shortnames) {
-    constexpr const char *txt = std::meta::extract<const Shortname>(name).text;
-    if (txt) {
-      return txt;
-    }
-  }
-
-  return std::define_static_string("");
-}
 
 constexpr inline bool not_emptystring(const char *s) {
   return s && s[0] != '\0';
@@ -69,7 +66,15 @@ struct ArgumentDeets {
 };
 
 template <std::meta::info type> consteval bool is_optional() {
-  if (!std::meta::is_type(type) || !std::meta::has_template_arguments(type)) {
+  if (!std::meta::is_type(type)) {
+    return false;
+  }
+
+  if (type == ^^bool) {
+    return true;
+  }
+
+  if (!std::meta::has_template_arguments(type)) {
     return false;
   }
 
@@ -84,12 +89,12 @@ template <typename T> constexpr auto get_fields() {
       std::meta::nonstatic_data_members_of(^^T, context));
 
   template for (constexpr auto member : members) {
-    std::meta::info member_type = std::meta::type_of(member);
+    constexpr std::meta::info member_type = std::meta::type_of(member);
     const char *member_name =
         std::define_static_string(std::meta::identifier_of(member));
-    const char *member_desc = extract_description<member>();
-    const char *member_short_name = extract_shortname<member>();
-    bool opt = is_optional<member>();
+    const char *member_desc = Description::extract<member>();
+    const char *member_short_name = Shortname::extract<member>();
+    bool opt = is_optional<member_type>();
     ArgumentDeets deets{
         member_name, member_short_name, member_desc, member_type, member, opt};
     fields.push_back(deets);
@@ -99,61 +104,35 @@ template <typename T> constexpr auto get_fields() {
 }
 
 template <typename T> constexpr auto get_positional_fields() {
-  std::vector<ArgumentDeets> fields{};
+  constexpr static auto fields = get_fields<T>();
+  std::vector<ArgumentDeets> val;
 
-  constexpr auto context = std::meta::access_context::current();
-  constexpr auto static members = std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, context));
-
-  template for (constexpr auto member : members) {
-    constexpr std::meta::info member_type = std::meta::type_of(member);
-    bool opt = is_optional<member_type>();
-    if (!opt) {
-      const char *member_name =
-          std::define_static_string(std::meta::identifier_of(member));
-      const char *member_desc = extract_description<member>();
-      const char *member_short_name = extract_shortname<member>();
-      bool opt = is_optional<member_type>();
-      ArgumentDeets deets{member_name, member_short_name,
-                          member_desc, member_type,
-                          member,      opt};
-      fields.push_back(deets);
+  for (auto field : fields) {
+    if (!field.optional) {
+      val.push_back(field);
     }
   }
 
-  return std::define_static_array(fields);
+  return std::define_static_array(val);
 }
 
 template <typename T> constexpr auto get_optional_fields() {
-  std::vector<ArgumentDeets> fields{};
+  constexpr static auto fields = get_fields<T>();
+  std::vector<ArgumentDeets> val;
 
-  constexpr auto context = std::meta::access_context::current();
-  constexpr auto static members = std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, context));
-
-  template for (constexpr auto member : members) {
-    constexpr std::meta::info member_type = std::meta::type_of(member);
-    bool opt = is_optional<member_type>();
-    if (!opt) {
-      const char *member_name =
-          std::define_static_string(std::meta::identifier_of(member));
-      const char *member_desc = extract_description<member>();
-      const char *member_short_name = extract_shortname<member>();
-      bool opt = is_optional<member_type>();
-      ArgumentDeets deets{member_name, member_short_name,
-                          member_desc, member_type,
-                          member,      opt};
-      fields.push_back(deets);
+  for (auto field : fields) {
+    if (field.optional) {
+      val.push_back(field);
     }
   }
 
-  return std::define_static_array(fields);
+  return std::define_static_array(val);
 }
 
 template <typename T> consteval auto create_help_string() {
   std::string s;
 
-  constexpr auto program_desc = extract_description<^^T>();
+  constexpr auto program_desc = Description::extract<^^T>();
 
   if (not_emptystring(program_desc)) {
     s += program_desc;
@@ -161,12 +140,26 @@ template <typename T> consteval auto create_help_string() {
   }
 
   constexpr auto static fields = get_fields<T>();
+  constexpr auto static positionals = get_positional_fields<T>();
+  constexpr auto static optionals = get_optional_fields<T>();
 
-  if (fields.size()) {
-    s += "USAGE:\n";
+  if (positionals.size()) {
+    s += "USAGE:";
+
+    template for (constexpr auto field : positionals) {
+      s += " <";
+      s += field.long_name;
+      s += ">";
+    }
+
+    s += '\n';
   }
 
-  template for (constexpr auto field : fields) {
+  if (optionals.size()) {
+    s += "Options:\n";
+  }
+
+  template for (constexpr auto field : optionals) {
     s += "   ";
     if (field.short_name && field.short_name[0] != '\0') {
       s += "-";
@@ -179,6 +172,32 @@ template <typename T> consteval auto create_help_string() {
     s += " ";
     s += field.description;
     s += "\n";
+  }
+
+  char num[4096]{};
+
+  if (fields.size() > 0 && fields.size() < 90) {
+    s += "Fields: ";
+    std::to_chars(num, num + 4095, fields.size());
+    s += num;
+  } else {
+    s += "We have no fields?";
+  }
+
+  s += '\n';
+
+  template for (constexpr auto field : fields) {
+    std::to_chars(num, num + 4095, (int) field.optional);
+    s += num;
+    s += ' ';
+    s += field.long_name;
+    s += ' ';
+    s += field.short_name;
+    s += ' ';
+    s += field.description;
+    s += ' ';
+    // s += std::string{std::meta::display_string_of( field.type )};
+    s += '\n';
   }
 
   return s;

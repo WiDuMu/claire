@@ -11,8 +11,8 @@ ServerConfig {
   [[= claire::Description("This is stupid if it works") ]]
   unsigned short num;
 
-  [[= claire::Description("Logging level to use")]]
-  std::optional<std::string> logging_level;
+  [[= claire::Description("Verbose logging"), = claire::Shortname("v")]]
+  bool verbose;
 };
 
 template <typename T>
@@ -37,7 +37,6 @@ int main(int argc, const char** argv) {
   if (!cfg.has_value()) {
     std::cout << claire::struct_fields<ServerConfig>();
   } else {
-    // print_argument_values<ServerConfig>(*cfg);
     std::cout << "Path: " << cfg->path << '\n';
     std::cout << "Print help: " << cfg->num << '\n';
   }
