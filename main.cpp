@@ -1,15 +1,45 @@
 #include <iostream>
 #include "claire.hpp"
 
-struct ServerConfig {
-  bool enable_logging;
+struct
+[[= claire::Description("Revolutionary helpstring printer")]]
+ServerConfig {
+  // double lolnoob;
 
-  // [[= field_enum::Description{"Show this help"}]]
+  std::string path;
+
   [[= claire::Description("This is stupid if it works") ]]
-  bool help;
+  unsigned short num;
+
+  [[= claire::Description("Logging level to use")]]
+  std::optional<std::string> logging_level;
 };
 
-int main() {
-  std::cout << claire::struct_fields<ServerConfig>();
+template <typename T>
+void print_argument_values(const T& args) {
+  constexpr static auto fields = claire::get_fields<T>();
+  std::string s;
+
+  template for (constexpr auto field : fields) {
+    constexpr auto name = field.long_name;
+    typename [: field.type :] val = fields.[: field.val :];
+    s += name;
+    s += ": ";
+    s += val;
+    s += '\n';
+  }
+
+  std::cout << s;
+}
+
+int main(int argc, const char** argv) {
+  auto cfg = claire::parse_args<ServerConfig>(argc, argv);
+  if (!cfg.has_value()) {
+    std::cout << claire::struct_fields<ServerConfig>();
+  } else {
+    // print_argument_values<ServerConfig>(*cfg);
+    std::cout << "Path: " << cfg->path << '\n';
+    std::cout << "Print help: " << cfg->num << '\n';
+  }
   return 0;
 }
