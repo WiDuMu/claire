@@ -62,12 +62,11 @@ constexpr auto get_fields() {
       std::define_static_array(std::meta::nonstatic_data_members_of(^^T, context));
 
   template for (constexpr auto member : members) {
-    constexpr std::meta::info member_type = std::meta::type_of(member);
-    constexpr const char * member_name = std::meta::identifier_of(member).data();
-    constexpr const char * member_desc = extract_description<member>();
-    constexpr const char * member_short_name = extract_shortname<member>();
-    // ArgumentDeets deets{member_name, member_short_name, member_desc, member_type};
-    constexpr ArgumentDeets deets{member_name, member_short_name, member_desc, member_type};
+    std::meta::info member_type = std::meta::type_of(member);
+    const char * member_name = std::define_static_string( std::meta::identifier_of(member) );
+    const char * member_desc = extract_description<member>();
+    const char * member_short_name = extract_shortname<member>();
+    ArgumentDeets deets{member_name, member_short_name, member_desc, member_type};
     fields.push_back(deets);
   }
 
