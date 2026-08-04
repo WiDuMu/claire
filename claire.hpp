@@ -8,8 +8,11 @@
 #include <cstddef>
 #include <meta>
 #include <optional>
-#include <vector>
 #include <ranges>
+#include <vector>
+#include <iostream>
+
+#include "claire_helpers.hpp"
 
 namespace claire {
 
@@ -34,8 +37,7 @@ struct Description {
   // compiler will freak out if you don't define it
   consteval Description(const std::string_view txt)
       : text(std::define_static_string(txt)) {}
-  template <std::meta::info i>
-  consteval static const char *extract() {
+  template <std::meta::info i> consteval static const char *extract() {
     return extract_text_annotation<i, Description>();
   }
 };
@@ -46,8 +48,7 @@ struct Shortname {
   // compiler will freak out if you don't define it
   consteval Shortname(const std::string_view txt)
       : text(std::define_static_string(txt)) {}
-  template <std::meta::info i>
-  consteval static const char *extract() {
+  template <std::meta::info i> consteval static const char *extract() {
     return extract_text_annotation<i, Shortname>();
   }
 };
@@ -155,6 +156,16 @@ template <typename T> consteval auto create_help_string() {
     s += '\n';
   }
 
+  template for (constexpr auto field : positionals) {
+    if (not_emptystring(field.description)) {
+      s += "   ";
+      s += field.long_name;
+      s += " ";
+      s += field.description;
+      s += "\n";
+    }
+  }
+
   if (optionals.size()) {
     s += "Options:\n";
   }
@@ -187,7 +198,7 @@ template <typename T> consteval auto create_help_string() {
   s += '\n';
 
   template for (constexpr auto field : fields) {
-    std::to_chars(num, num + 4095, (int) field.optional);
+    std::to_chars(num, num + 4095, (int)field.optional);
     s += num;
     s += ' ';
     s += field.long_name;
@@ -196,7 +207,7 @@ template <typename T> consteval auto create_help_string() {
     s += ' ';
     s += field.description;
     s += ' ';
-    // s += std::string{std::meta::display_string_of( field.type )};
+    s += std::string{std::meta::display_string_of(field.type)};
     s += '\n';
   }
 
@@ -209,6 +220,7 @@ template <typename T> consteval const char *const struct_fields() {
 
 template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
   constexpr static auto deets = get_positional_fields<T>();
+  constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
   std::size_t argp = 1;
   std::size_t positional_index = 0;
@@ -219,8 +231,37 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
       const char *arg = argv[argp];
       // Are we a flag?
       if (argv && arg[0] == '-') {
-        if (arg[1] != '\0' && arg[1] != '-') {        // Short flag
+        if (arg[1] != '\0' && arg[1] != '-') { // Short flag
+          template for (constexpr auto option : optionals) {
+
+            if constexpr (not_emptystring(option.short_name)) {
+
+              constexpr std::meta::info t = option.type;
+              if constexpr (same_type_as<t, bool>()) {
+                if (std::strcmp(arg + 1, option.short_name) == 0) {
+                  ret.[:option.val:] = true;
+                }
+              }
+            }
+          }
         } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
+          template for (constexpr auto option : optionals) {
+            constexpr std::meta::info t = option.type;
+            constexpr size_t name_len = std::strlen(option.long_name);
+            constexpr const char* name = option.long_name;
+            if constexpr (same_type_as<t, bool>()) {
+              if (std::strcmp(arg + 2, option.long_name) == 0) {
+                ret.[:option.val:] = true;
+              }
+            } else {
+              if (std::strcmp(arg + 2, option.long_name) == 0) {
+                std::cout << name << " found\n";
+                if (arg[name_len + 2] == '=') {
+                  std::cout << name << " = " << (arg + 2 + name_len);
+                }
+              }
+            }
+          }
         }
       } else {
         break;

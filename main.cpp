@@ -1,15 +1,19 @@
+#include <cstddef>
 #include <iostream>
+#include <optional>
 #include "claire.hpp"
 
 struct
 [[= claire::Description("Revolutionary helpstring printer")]]
 ServerConfig {
-  // double lolnoob;
+  [[= claire::Description("Name of the person to greet")]]
+  std::string name;
 
-  std::string path;
+  [[= claire::Description("Number of times to repeat greeting") ]]
+  std::size_t num;
 
-  [[= claire::Description("This is stupid if it works") ]]
-  unsigned short num;
+  // [[= claire::Description("Custom greeting to use") ]]
+  std::optional<std::string> greeting;
 
   [[= claire::Description("Verbose logging"), = claire::Shortname("v")]]
   bool verbose;
@@ -36,9 +40,21 @@ int main(int argc, const char** argv) {
   auto cfg = claire::parse_args<ServerConfig>(argc, argv);
   if (!cfg.has_value()) {
     std::cout << claire::struct_fields<ServerConfig>();
-  } else {
-    std::cout << "Path: " << cfg->path << '\n';
-    std::cout << "Print help: " << cfg->num << '\n';
+    return 1;
+  }
+
+  std::string greeting = "Hello ";
+
+  // if (cfg->greeting.has_value()) {
+  //   greeting = cfg->greeting.value();
+  // }
+
+  if (cfg->verbose) {
+    std::cout << "Verbose logging enabled" << "\n";
+  }
+
+  for (int i = 0; i < cfg->num; i++) {
+    std::cout << greeting << cfg->name << '\n';
   }
   return 0;
 }
