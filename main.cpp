@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include "claire.hpp"
@@ -14,6 +15,9 @@ ServerConfig {
 
   // [[= claire::Description("Custom greeting to use") ]]
   std::optional<std::string> greeting;
+
+  [[= claire::Description("file to use")]]
+  std::optional<std::filesystem::path> file;
 
   [[= claire::Description("Verbose logging"), = claire::Shortname("v")]]
   bool verbose;
@@ -44,10 +48,6 @@ int main(int argc, const char** argv) {
   }
 
   std::string greeting = "Hello ";
-
-  // if (cfg->greeting.has_value()) {
-  //   greeting = cfg->greeting.value();
-  // }
 
   if (cfg->verbose) {
     std::cout << "Verbose logging enabled" << "\n";

@@ -219,46 +219,70 @@ template <typename T> consteval const char *const struct_fields() {
 }
 
 template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
-  constexpr static auto deets = get_positional_fields<T>();
+  constexpr static auto positionals = get_positional_fields<T>();
   constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
   std::size_t argp = 1;
   std::size_t positional_index = 0;
+  
+  // Iterate through the positional fields of the struct
+  // Iterate through the argugments, if we find a argument that isn't a flag i.e. `--verbose`,
+  // or a optional i.e. `--logging-level verbose`, break, process the positional, and continue.
+  // #TODO: currently a flag doesn't process correctly 
+  template for (constexpr auto field : positionals) {
+    constexpr const char *err_parsing_string = std::define_static_string(
+        std::string{"Failed parsing argument "} + field.long_name);
+    constexpr const char *err_not_exists_string = std::define_static_string(
+        std::string{"Failed parsing argument "} + field.long_name);
 
-  template for (constexpr auto field : deets) {
-
+    // Iterate through remaining arguments
     for (argp; argp < argc; argp++) {
       const char *arg = argv[argp];
-      // Are we a flag?
+      std::cout << "Processing arg '" << arg << "'\n";
+
+      // Is it a optional argument?
       if (argv && arg[0] == '-') {
-        if (arg[1] != '\0' && arg[1] != '-') { // Short flag
+
+        // Short optional arugment
+        if (arg[1] != '\0' && arg[1] != '-') {
+
           template for (constexpr auto option : optionals) {
+            constexpr const char* long_name = option.long_name;
+            constexpr const char* short_name = option.short_name;
+            constexpr std::meta::info t = option.type;
 
-            if constexpr (not_emptystring(option.short_name)) {
+            // #TODO bring this out so it checks whether this option exists before checking for a short option
+            if constexpr (not_emptystring(short_name)) {
+              
+              if (strcmp(short_name, arg + 1) == 0) {
 
-              constexpr std::meta::info t = option.type;
-              if constexpr (same_type_as<t, bool>()) {
-                if (std::strcmp(arg + 1, option.short_name) == 0) {
-                  ret.[:option.val:] = true;
+                // Is it a flag or a parameter
+                if constexpr (same_type_as<t, bool>) { // Flag
+                  ret.[: option.val :] = true;
+                  std::cout << "Found flag: " << long_name;
+                } else { // parameter
+                  const char* parameter = argv[++argp];
+                  std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n'; 
                 }
+
               }
+
+              
             }
           }
         } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
           template for (constexpr auto option : optionals) {
             constexpr std::meta::info t = option.type;
-            constexpr size_t name_len = std::strlen(option.long_name);
-            constexpr const char* name = option.long_name;
-            if constexpr (same_type_as<t, bool>()) {
-              if (std::strcmp(arg + 2, option.long_name) == 0) {
-                ret.[:option.val:] = true;
-              }
-            } else {
-              if (std::strcmp(arg + 2, option.long_name) == 0) {
-                std::cout << name << " found\n";
-                if (arg[name_len + 2] == '=') {
-                  std::cout << name << " = " << (arg + 2 + name_len);
-                }
+            constexpr const char* long_name = option.long_name;
+
+            if (std::strcmp(long_name, arg + 2) == 0) { // Matches
+
+              if constexpr (same_type_as<t, bool>()) { // Flag
+                 ret.[:option.val:] = true;
+                 std::cout << "Found flag: " << long_name << '\n';
+              } else {
+                const char* parameter = argv[++argp];
+                std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n'; 
               }
             }
           }
@@ -267,11 +291,6 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
         break;
       }
     }
-
-    constexpr const char *err_parsing_string = std::define_static_string(
-        std::string{"Failed parsing argument "} + field.long_name);
-    constexpr const char *err_not_exists_string = std::define_static_string(
-        std::string{"Failed parsing argument "} + field.long_name);
 
     if (argp < argc) { // Positional argument exists
       std::optional<typename[:field.type:]> val =
