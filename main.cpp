@@ -13,9 +13,6 @@ ServerConfig {
   [[= claire::Description("Number of times to repeat greeting") ]]
   std::size_t num;
 
-  // [[= claire::Description("Custom greeting to use") ]]
-  std::optional<std::string> greeting;
-
   [[= claire::Description("file to use")]]
   std::optional<std::filesystem::path> file;
 
@@ -43,7 +40,7 @@ void print_argument_values(const T& args) {
 int main(int argc, const char** argv) {
   auto cfg = claire::parse_args<ServerConfig>(argc, argv);
   if (!cfg.has_value()) {
-    std::cout << claire::struct_fields<ServerConfig>();
+    std::cout << claire::create_help_string<ServerConfig>();
     return 1;
   }
 
