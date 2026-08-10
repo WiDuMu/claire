@@ -308,8 +308,7 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_positional_fields<T>();
   constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
-  std::size_t argp = 1;
-  std::size_t positional_index = 0;
+  int argp = 1;
 
   // Iterate through the positional fields of the struct
   // Iterate through the argugments, if we find a argument that isn't a flag
@@ -323,7 +322,7 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
         std::string{"Failed parsing argument "} + field.long_name);
 
     // Iterate through remaining arguments
-    for (argp; argp < argc; argp++) {
+    for (; argp < argc; argp++) {
       const char *arg = argv[argp];
       std::cout << "Processing arg '" << arg << "'\n";
 

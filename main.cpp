@@ -11,7 +11,7 @@ ServerConfig {
   std::string name;
 
   [[= claire::Description("Number of times to repeat greeting") ]]
-  std::size_t num;
+  int num;
 
   [[= claire::Description("file to use")]]
   std::optional<std::filesystem::path> file;
