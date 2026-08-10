@@ -15,8 +15,8 @@ namespace claire {
 /// Extract the 'text' field from an annotated struct
 template <std::meta::info i, typename T>
 consteval const char *extract_text_annotation() {
-  constexpr static auto shortnames = std::define_static_array(
-      std::meta::annotations_of_with_type(i, ^^const T));
+  constexpr static auto shortnames =
+      std::define_static_array(std::meta::annotations_of_with_type(i, ^^const T));
 
   template for (constexpr auto name : shortnames) {
     constexpr const char *txt = std::meta::extract<const T>(name).text;
@@ -46,9 +46,9 @@ struct Description {
   const char *text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
-  consteval Description(const std::string_view txt)
-      : text(std::define_static_string(txt)) {}
-  template <std::meta::info i> consteval static const char *extract() {
+  consteval Description(const std::string_view txt) : text(std::define_static_string(txt)) {}
+  template <std::meta::info i>
+  consteval static const char *extract() {
     return extract_text_annotation<i, Description>();
   }
 };
@@ -63,9 +63,9 @@ struct Shortname {
   const char *text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
-  consteval Shortname(const std::string_view txt)
-      : text(std::define_static_string(txt)) {}
-  template <std::meta::info i> consteval static const char *extract() {
+  consteval Shortname(const std::string_view txt) : text(std::define_static_string(txt)) {}
+  template <std::meta::info i>
+  consteval static const char *extract() {
     return extract_text_annotation<i, Shortname>();
   }
 };
@@ -89,7 +89,8 @@ struct ArgumentDeets {
 */
 
 /// Checks if a std::meta::info represents a type that is the same as T
-template <std::meta::info i, typename T> consteval bool same_type_as() {
+template <std::meta::info i, typename T>
+consteval bool same_type_as() {
   if (!std::meta::is_type(i)) {
     return std::meta::type_of(i) == ^^T;
   }
@@ -97,13 +98,12 @@ template <std::meta::info i, typename T> consteval bool same_type_as() {
 }
 
 /// Checks if a C string is empty
-constexpr inline bool not_emptystring(const char *s) {
-  return s && s[0] != '\0';
-}
+constexpr inline bool not_emptystring(const char *s) { return s && s[0] != '\0'; }
 
 /// Optional arguments are either boolean and assumed to be a flag
 /// or wrapped in a std::optional
-template <std::meta::info type> consteval bool is_optional() {
+template <std::meta::info type>
+consteval bool is_optional() {
   if (!std::meta::is_type(type)) {
     return false;
   }
@@ -120,22 +120,21 @@ template <std::meta::info type> consteval bool is_optional() {
 }
 
 /// Gets all fields of a struct, and creates a static array of the details
-template <typename T> constexpr auto get_fields() {
+template <typename T>
+constexpr auto get_fields() {
   std::vector<ArgumentDeets> fields{};
 
   constexpr auto context = std::meta::access_context::current();
-  constexpr auto static members = std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, context));
+  constexpr auto static members =
+      std::define_static_array(std::meta::nonstatic_data_members_of(^^T, context));
 
   template for (constexpr auto member : members) {
     constexpr std::meta::info member_type = std::meta::type_of(member);
-    const char *member_name =
-        std::define_static_string(std::meta::identifier_of(member));
+    const char *member_name = std::define_static_string(std::meta::identifier_of(member));
     const char *member_desc = Description::extract<member>();
     const char *member_short_name = Shortname::extract<member>();
     bool opt = is_optional<member_type>();
-    ArgumentDeets deets{
-        member_name, member_short_name, member_desc, member_type, member, opt};
+    ArgumentDeets deets{member_name, member_short_name, member_desc, member_type, member, opt};
     fields.push_back(deets);
   }
 
@@ -144,7 +143,8 @@ template <typename T> constexpr auto get_fields() {
 
 /// Filters the fields to only return the positionals
 /// #TODO This is inefficient
-template <typename T> constexpr auto get_positional_fields() {
+template <typename T>
+constexpr auto get_positional_fields() {
   constexpr static auto fields = get_fields<T>();
   std::vector<ArgumentDeets> val;
 
@@ -159,7 +159,8 @@ template <typename T> constexpr auto get_positional_fields() {
 
 /// Filters the fields to only return the optional values
 /// #TODO this is inefficient
-template <typename T> constexpr auto get_optional_fields() {
+template <typename T>
+constexpr auto get_optional_fields() {
   constexpr static auto fields = get_fields<T>();
   std::vector<ArgumentDeets> val;
 
@@ -181,7 +182,8 @@ template <typename T> constexpr auto get_optional_fields() {
 */
 
 /// Parses a numeric value into from a c string
-template <typename T> inline std::optional<T> parse_numeric(const char *str) {
+template <typename T>
+inline std::optional<T> parse_numeric(const char *str) {
   size_t len = std::strlen(str);
   T val;
   auto result = std::from_chars(str, str + len, val);
@@ -200,7 +202,8 @@ std::optional<T> parse_arg(const char *str) {
 }
 
 /// Generic form of parse_arg for types that can be constructed from strings
-template <typename T> std::optional<T> parse_arg(const char *str) {
+template <typename T>
+std::optional<T> parse_arg(const char *str) {
   try {
     return T{str};
   } catch (...) {
@@ -209,7 +212,8 @@ template <typename T> std::optional<T> parse_arg(const char *str) {
 }
 
 /// If a argument is a boolean type, if it exists at all it is true
-template <> std::optional<bool> parse_arg<bool>(const char *str) {
+template <>
+std::optional<bool> parse_arg<bool>(const char *str) {
   return true;
 }
 
@@ -221,7 +225,8 @@ template <> std::optional<bool> parse_arg<bool>(const char *str) {
 +----------------------------------------------------------------------------+
 */
 
-template <typename T> consteval const char *create_help_string() {
+template <typename T>
+consteval const char *create_help_string() {
   std::string s;
 
   constexpr auto program_desc = Description::extract<^^T>();
@@ -247,7 +252,7 @@ template <typename T> consteval const char *create_help_string() {
     s += '\n';
   }
 
-  template for (constexpr auto field : positionals) {
+  template for (constexpr auto field : optionals) {
     if (not_emptystring(field.description)) {
       s += "   ";
       s += field.long_name;
@@ -304,7 +309,8 @@ template <typename T> consteval const char *create_help_string() {
   return std::define_static_string(s);
 }
 
-template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
+template <typename T>
+std::optional<T> parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_positional_fields<T>();
   constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
@@ -316,10 +322,10 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
   // process the positional, and continue. #TODO: currently a flag doesn't
   // process correctly
   template for (constexpr auto field : positionals) {
-    constexpr const char *err_parsing_string = std::define_static_string(
-        std::string{"Failed parsing argument "} + field.long_name);
-    constexpr const char *err_not_exists_string = std::define_static_string(
-        std::string{"Failed parsing argument "} + field.long_name);
+    constexpr const char *err_parsing_string =
+        std::define_static_string(std::string{"Failed parsing argument "} + field.long_name);
+    constexpr const char *err_not_exists_string =
+        std::define_static_string(std::string{"Failed parsing argument "} + field.long_name);
 
     // Iterate through remaining arguments
     for (; argp < argc; argp++) {
@@ -349,8 +355,7 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
                   std::cout << "Found flag: " << long_name;
                 } else { // parameter
                   const char *parameter = argv[++argp];
-                  std::cout << "Found parameter: " << long_name
-                            << " value: " << parameter << '\n';
+                  std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n';
                 }
               }
             }
@@ -367,8 +372,7 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
                 std::cout << "Found flag: " << long_name << '\n';
               } else {
                 const char *parameter = argv[++argp];
-                std::cout << "Found parameter: " << long_name
-                          << " value: " << parameter << '\n';
+                std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n';
               }
             }
           }
@@ -379,8 +383,7 @@ template <typename T> std::optional<T> parse_args(int argc, const char **argv) {
     }
 
     if (argp < argc) { // Positional argument exists
-      std::optional<typename[:field.type:]> val =
-          parse_arg<typename[:field.type:]>(argv[argp]);
+      std::optional<typename[:field.type:]> val = parse_arg<typename[:field.type:]>(argv[argp]);
       if (val.has_value()) {
         argp++;
         ret.[:field.val:] = *val;
