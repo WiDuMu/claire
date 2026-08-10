@@ -217,6 +217,28 @@ std::optional<bool> parse_arg<bool>(const char *str) {
   return true;
 }
 
+template <typename T, ArgumentDeets deets>
+inline bool parse_parameter_wrapper(T &ret, int const argc, int &argp, const char **&argv) {
+  constexpr const char *long_name = deets.long_name;
+  if constexpr (same_type_as<deets.type, bool>()) {
+    ret.[:deets.val:] = true;
+    std::cout << "Found flag: " << long_name << '\n';
+    return true;
+  } else {
+    if ((argp + 1) < argc) {
+      ++argp; // #TODO: add in = handling to args. i.e. --file=filename
+      auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+      std::cout << "Found optional parameter: " << long_name << " value: " << argv[argp] << '\n';
+      if (result) {
+        ret.[:deets.val:] = result.value();
+      }
+      return true;
+    } else {
+      return false; // #TODO: proper error handling
+    }
+  }
+}
+
 /*
 +----------------------------------------------------------------------------+
 |                                                                            |
@@ -327,10 +349,17 @@ std::optional<T> parse_args(int argc, const char **argv) {
     constexpr const char *err_not_exists_string =
         std::define_static_string(std::string{"Failed parsing argument "} + field.long_name);
 
+    constexpr const char *ln = field.long_name;
+    constexpr bool opt = field.optional;
+
+    std::cout << "Positional: " << ln << " optional: " << opt << '\n';
+
     // Iterate through remaining arguments
     for (; argp < argc; argp++) {
       const char *arg = argv[argp];
       std::cout << "Processing arg '" << arg << "'\n";
+
+      std::cout << "argp: " << argp << " argc: " << argc << '\n';
 
       // Is it a optional argument?
       if (argv && arg[0] == '-') {
@@ -339,9 +368,7 @@ std::optional<T> parse_args(int argc, const char **argv) {
         if (arg[1] != '\0' && arg[1] != '-') {
 
           template for (constexpr auto option : optionals) {
-            constexpr const char *long_name = option.long_name;
             constexpr const char *short_name = option.short_name;
-            constexpr std::meta::info t = option.type;
 
             // #TODO bring this out so it checks whether this option exists
             // before checking for a short option
@@ -349,31 +376,19 @@ std::optional<T> parse_args(int argc, const char **argv) {
 
               if (strcmp(short_name, arg + 1) == 0) {
 
-                // Is it a flag or a parameter
-                if constexpr (same_type_as<t, bool>) { // Flag
-                  ret.[:option.val:] = true;
-                  std::cout << "Found flag: " << long_name;
-                } else { // parameter
-                  const char *parameter = argv[++argp];
-                  std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n';
-                }
+                parse_parameter_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
+
               }
             }
           }
         } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
           template for (constexpr auto option : optionals) {
-            constexpr std::meta::info t = option.type;
             constexpr const char *long_name = option.long_name;
 
             if (std::strcmp(long_name, arg + 2) == 0) { // Matches
 
-              if constexpr (same_type_as<t, bool>()) { // Flag
-                ret.[:option.val:] = true;
-                std::cout << "Found flag: " << long_name << '\n';
-              } else {
-                const char *parameter = argv[++argp];
-                std::cout << "Found parameter: " << long_name << " value: " << parameter << '\n';
-              }
+              parse_parameter_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
+
             }
           }
         }
