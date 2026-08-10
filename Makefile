@@ -1,5 +1,5 @@
 CXX = g++
-CXX_FLAGS = --std=c++26 -freflection -Wall -Wpedantic
+CXX_FLAGS = --std=c++26 -freflection -Wall -Wconversion -Wextra -Wshadow -Wpedantic
 CXX_INCLUDES  = -I.
 
 all:

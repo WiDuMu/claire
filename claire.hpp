@@ -213,12 +213,12 @@ std::optional<T> parse_arg(const char *str) {
 
 /// If a argument is a boolean type, if it exists at all it is true
 template <>
-std::optional<bool> parse_arg<bool>(const char *str) {
+std::optional<bool> parse_arg<bool>([[maybe_unused]] const char *str) {
   return true;
 }
 
 template <typename T, ArgumentDeets deets>
-inline bool parse_parameter_wrapper(T &ret, int const argc, int &argp, const char **&argv) {
+inline bool parse_optional_wrapper(T &ret, int const argc, int &argp, const char **&argv) {
   constexpr const char *long_name = deets.long_name;
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
@@ -376,7 +376,7 @@ std::optional<T> parse_args(int argc, const char **argv) {
 
               if (strcmp(short_name, arg + 1) == 0) {
 
-                parse_parameter_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
+                parse_optional_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
 
               }
             }
@@ -387,7 +387,7 @@ std::optional<T> parse_args(int argc, const char **argv) {
 
             if (std::strcmp(long_name, arg + 2) == 0) { // Matches
 
-              parse_parameter_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
+              parse_optional_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
 
             }
           }
