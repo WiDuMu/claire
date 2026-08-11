@@ -1,16 +1,17 @@
 #ifndef CLAIRE_HPP
 #define CLAIRE_HPP
 
+#include <array>
 #include <charconv>
 #include <cstddef>
 #include <cstring>
+#include <format>
 #include <iostream>
 #include <meta>
 #include <optional>
 #include <ranges>
 #include <utility>
 #include <vector>
-#include <format>
 
 namespace claire {
 
@@ -241,7 +242,7 @@ inline bool parse_optional_wrapper(T &ret, int const argc, int &argp, const char
   }
 }
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
 inline bool parse_optional_wrapper2(T &ret, int const argc, int &argp, const char **&argv) {
   if (strcmp(name, argv[argp] + offset) == 0) {
     return parse_optional_wrapper<T, deets>(ret, argc, argp, argv); // #TODO handle errors
@@ -250,18 +251,40 @@ inline bool parse_optional_wrapper2(T &ret, int const argc, int &argp, const cha
   }
 }
 
-template <typename T, ArgumentDeets deets>
-inline bool parse_short_optional(T &ret, int const argc, int &argp, const char **&argv) {
-  if constexpr (not_emptystring(deets.short_name)) {
-    return parse_optional_wrapper2<T, deets, 1, deets.short_name>(ret, argc, argp, argv);
-  } else {
-    return false;
-  }
-}
+template <typename T>
+inline bool parse_optionals(T &ret, int const argc, int &argp, const char **&argv) {
+  constexpr static auto optionals = get_optional_fields<T>();
+  for (; argp < argc; argp++) {
+    const char *arg = argv[argp];
 
-template <typename T, ArgumentDeets deets>
-inline bool parse_long_optional(T &ret, int const argc, int &argp, const char **&argv) {
-    return parse_optional_wrapper2<T, deets, 2, deets.long_name>(ret, argc, argp, argv);
+    // Is it a optional argument?
+    if (argv && arg[0] == '-') {
+
+      // Short optional arugment
+      if (arg[1] != '\0' && arg[1] != '-') {
+
+        template for (constexpr auto option : optionals) {
+
+          if constexpr (not_emptystring(option.short_name)) {
+            auto result = parse_optional_wrapper2<T, option, 1, option.short_name>(ret, argc, argp, argv);
+            if (result) {
+              break;
+            }
+          }
+        }
+      } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
+        template for (constexpr auto option : optionals) {
+          auto result = parse_optional_wrapper2<T, option, 2, option.long_name>(ret, argc, argp, argv);
+          if (result) {
+            break;
+          }
+        }
+      }
+    } else {
+      return false;
+    }
+  }
+  return false;
 }
 
 /*
@@ -359,7 +382,7 @@ consteval const char *create_help_string() {
 template <typename T>
 std::optional<T> parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_positional_fields<T>();
-  constexpr static auto optionals = get_optional_fields<T>();
+  // constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
   int argp = 1;
 
@@ -379,31 +402,7 @@ std::optional<T> parse_args(int argc, const char **argv) {
 
     std::cout << "Positional: " << ln << " optional: " << opt << '\n';
 
-    // Iterate through remaining arguments
-    for (; argp < argc; argp++) {
-      const char *arg = argv[argp];
-      std::cout << "Processing arg '" << arg << "'\n";
-
-      std::cout << "argp: " << argp << " argc: " << argc << '\n';
-
-      // Is it a optional argument?
-      if (argv && arg[0] == '-') {
-
-        // Short optional arugment
-        if (arg[1] != '\0' && arg[1] != '-') {
-
-          template for (constexpr auto option : optionals) {
-            parse_short_optional<T, option>(ret, argc, argp, argv);
-          }
-        } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
-          template for (constexpr auto option : optionals) {
-            parse_long_optional<T, option>(ret, argc, argp, argv);
-          }
-        }
-      } else {
-        break;
-      }
-    }
+    parse_optionals<T>(ret, argc, argp, argv);
 
     if (argp < argc) { // Positional argument exists
       std::optional<typename[:field.type:]> val = parse_arg<typename[:field.type:]>(argv[argp]);
@@ -411,11 +410,11 @@ std::optional<T> parse_args(int argc, const char **argv) {
         argp++;
         ret.[:field.val:] = *val;
       } else {
-        std::puts(err_parsing_string);
+        std::cout << err_parsing_string;
         return std::nullopt;
       }
     } else {
-      std::puts(err_not_exists_string);
+      std::cout << err_not_exists_string;
       return std::nullopt;
     }
   }
