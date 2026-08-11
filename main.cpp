@@ -40,7 +40,7 @@ void print_argument_values(const T& args) {
 int main(int argc, const char** argv) {
   auto cfg = claire::parse_args<ServerConfig>(argc, argv);
   if (!cfg.has_value()) {
-    std::cout << claire::create_help_string<ServerConfig>();
+    std::cout << claire::create_help_string<ServerConfig>() << cfg.error();
     return 1;
   }
 
