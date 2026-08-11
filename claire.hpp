@@ -8,7 +8,9 @@
 #include <meta>
 #include <optional>
 #include <ranges>
+#include <utility>
 #include <vector>
+#include <format>
 
 namespace claire {
 
@@ -239,6 +241,29 @@ inline bool parse_optional_wrapper(T &ret, int const argc, int &argp, const char
   }
 }
 
+template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+inline bool parse_optional_wrapper2(T &ret, int const argc, int &argp, const char **&argv) {
+  if (strcmp(name, argv[argp] + offset) == 0) {
+    return parse_optional_wrapper<T, deets>(ret, argc, argp, argv); // #TODO handle errors
+  } else {
+    return false;
+  }
+}
+
+template <typename T, ArgumentDeets deets>
+inline bool parse_short_optional(T &ret, int const argc, int &argp, const char **&argv) {
+  if constexpr (not_emptystring(deets.short_name)) {
+    return parse_optional_wrapper2<T, deets, 1, deets.short_name>(ret, argc, argp, argv);
+  } else {
+    return false;
+  }
+}
+
+template <typename T, ArgumentDeets deets>
+inline bool parse_long_optional(T &ret, int const argc, int &argp, const char **&argv) {
+    return parse_optional_wrapper2<T, deets, 2, deets.long_name>(ret, argc, argp, argv);
+}
+
 /*
 +----------------------------------------------------------------------------+
 |                                                                            |
@@ -368,28 +393,11 @@ std::optional<T> parse_args(int argc, const char **argv) {
         if (arg[1] != '\0' && arg[1] != '-') {
 
           template for (constexpr auto option : optionals) {
-            constexpr const char *short_name = option.short_name;
-
-            // #TODO bring this out so it checks whether this option exists
-            // before checking for a short option
-            if constexpr (not_emptystring(short_name)) {
-
-              if (strcmp(short_name, arg + 1) == 0) {
-
-                parse_optional_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
-
-              }
-            }
+            parse_short_optional<T, option>(ret, argc, argp, argv);
           }
         } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
           template for (constexpr auto option : optionals) {
-            constexpr const char *long_name = option.long_name;
-
-            if (std::strcmp(long_name, arg + 2) == 0) { // Matches
-
-              parse_optional_wrapper<T, option>(ret, argc, argp, argv); // #TODO handle errors
-
-            }
+            parse_long_optional<T, option>(ret, argc, argp, argv);
           }
         }
       } else {
