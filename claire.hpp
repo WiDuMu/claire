@@ -49,7 +49,8 @@ struct Description {
   const char *text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
-  [[nodiscard]] consteval Description(const std::string_view txt) noexcept : text(std::define_static_string(txt)) {}
+  [[nodiscard]] consteval Description(const std::string_view txt) noexcept
+      : text(std::define_static_string(txt)) {}
   template <std::meta::info i>
   [[nodiscard]] consteval static const char *extract() noexcept {
     return extract_text_annotation<i, Description>();
@@ -66,7 +67,8 @@ struct Shortname {
   const char *text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
-  [[nodiscard]] consteval Shortname(const std::string_view txt) noexcept : text(std::define_static_string(txt)) {}
+  [[nodiscard]] consteval Shortname(const std::string_view txt) noexcept
+      : text(std::define_static_string(txt)) {}
   template <std::meta::info i>
   [[nodiscard]] consteval static const char *extract() noexcept {
     return extract_text_annotation<i, Shortname>();
@@ -223,7 +225,6 @@ template <>
 template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
 [[nodiscard]] inline std::expected<bool, const char *>
 parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
-  constexpr const char *long_name = deets.long_name;
   constexpr const char *const err_parsing_msg =
       std::define_static_string(std::string{"Error: failed to parse argument '"} + name + "'\n");
   constexpr const char *const err_missing_msg =
@@ -235,21 +236,20 @@ parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
 
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
-    std::cout << "Found flag: " << long_name << '\n';
     return true;
   } else {
-    if ((argp + 1) < argc) {
-      ++argp; // #TODO: add in = handling to args. i.e. --file=filename
-      auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
-      std::cout << "Found optional parameter: " << long_name << " value: " << argv[argp] << '\n';
-      if (result) {
-        ret.[:deets.val:] = result.value();
-        return true;
-      } else {
-        return std::unexpected(err_parsing_msg);
-      }
-    } else {
+
+    if ((argp + 1) >= argc) {
       return std::unexpected(err_missing_msg);
+    }
+
+    ++argp; // #TODO: add in = handling to args. i.e. --file=filename
+    auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+    if (result) {
+      ret.[:deets.val:] = result.value();
+      return true;
+    } else {
+      return std::unexpected(err_parsing_msg);
     }
   }
 }
@@ -424,6 +424,13 @@ std::expected<T, const char *> parse_args(int argc, const char **argv) {
       }
     } else {
       return std::unexpected(err_not_exists_string);
+    }
+  }
+
+  if (argp < argc) { // More optionals exist
+    auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
+    if (!optional_result.has_value()) {
+      return std::unexpected(optional_result.error());
     }
   }
 
