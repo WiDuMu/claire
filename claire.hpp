@@ -5,11 +5,10 @@
 #include <charconv>
 #include <cstddef>
 #include <cstring>
-#include <format>
+#include <expected>
 #include <iostream>
 #include <meta>
 #include <optional>
-#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -220,9 +219,14 @@ std::optional<bool> parse_arg<bool>([[maybe_unused]] const char *str) {
   return true;
 }
 
-template <typename T, ArgumentDeets deets>
+template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
 inline bool parse_optional_wrapper(T &ret, int const argc, int &argp, const char **&argv) {
   constexpr const char *long_name = deets.long_name;
+
+  if (strcmp(name, argv[argp] + offset)) { // If we don't match bail
+    return false;
+  }
+
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
     std::cout << "Found flag: " << long_name << '\n';
@@ -242,15 +246,6 @@ inline bool parse_optional_wrapper(T &ret, int const argc, int &argp, const char
   }
 }
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
-inline bool parse_optional_wrapper2(T &ret, int const argc, int &argp, const char **&argv) {
-  if (strcmp(name, argv[argp] + offset) == 0) {
-    return parse_optional_wrapper<T, deets>(ret, argc, argp, argv); // #TODO handle errors
-  } else {
-    return false;
-  }
-}
-
 template <typename T>
 inline bool parse_optionals(T &ret, int const argc, int &argp, const char **&argv) {
   constexpr static auto optionals = get_optional_fields<T>();
@@ -266,7 +261,8 @@ inline bool parse_optionals(T &ret, int const argc, int &argp, const char **&arg
         template for (constexpr auto option : optionals) {
 
           if constexpr (not_emptystring(option.short_name)) {
-            auto result = parse_optional_wrapper2<T, option, 1, option.short_name>(ret, argc, argp, argv);
+            auto result =
+                parse_optional_wrapper<T, option, 1, option.short_name>(ret, argc, argp, argv);
             if (result) {
               break;
             }
@@ -274,7 +270,8 @@ inline bool parse_optionals(T &ret, int const argc, int &argp, const char **&arg
         }
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
-          auto result = parse_optional_wrapper2<T, option, 2, option.long_name>(ret, argc, argp, argv);
+          auto result =
+              parse_optional_wrapper<T, option, 2, option.long_name>(ret, argc, argp, argv);
           if (result) {
             break;
           }
@@ -382,7 +379,6 @@ consteval const char *create_help_string() {
 template <typename T>
 std::optional<T> parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_positional_fields<T>();
-  // constexpr static auto optionals = get_optional_fields<T>();
   T ret{};
   int argp = 1;
 
@@ -396,11 +392,6 @@ std::optional<T> parse_args(int argc, const char **argv) {
         std::define_static_string(std::string{"Failed parsing argument "} + field.long_name);
     constexpr const char *err_not_exists_string =
         std::define_static_string(std::string{"Failed parsing argument "} + field.long_name);
-
-    constexpr const char *ln = field.long_name;
-    constexpr bool opt = field.optional;
-
-    std::cout << "Positional: " << ln << " optional: " << opt << '\n';
 
     parse_optionals<T>(ret, argc, argp, argv);
 
