@@ -1,7 +1,7 @@
 /*-----------------------------------------------------------------------------+
 |                                                                              |
 |       Claire: Command Line Arguments Interpretation Reflection Engine        |
-|                       (C) William Duncan Murphy 2026                         |
+|                             (C) WiDuMu 2026                                  |
 |                                                                              |
 +-----------------------------------------------------------------------------*/
 
@@ -87,6 +87,14 @@ struct ArgumentDeets {
   std::meta::info val;
   bool optional;
 };
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                           Library statics                                  |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+inline std::string err_return_msg;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -281,10 +289,16 @@ parse_optionals(T &ret, int const argc, int &argp,
               return std::unexpected(result.error());
             }
             if (*result) {
-              break;
+              goto end_of_loop; // #TODO: Fix this without goto
             }
           }
         }
+
+        err_return_msg = "Error: Unknown short argument: ";
+        err_return_msg += arg;
+        err_return_msg += '\n';
+
+        return std::unexpected(err_return_msg.c_str());
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
           auto result = parse_optional<T, option, 2, option.long_name>(
@@ -293,13 +307,20 @@ parse_optionals(T &ret, int const argc, int &argp,
             return std::unexpected(result.error());
           }
           if (*result) {
-            break;
+            goto end_of_loop; // #TODO: Fix this without goto
           }
         }
+
+        err_return_msg = "Error: Unknown long argument: ";
+        err_return_msg += arg;
+        err_return_msg += '\n';
+
+        return std::unexpected(err_return_msg.c_str());
       }
     } else {
-      return false;
+      return true;
     }
+end_of_loop:
   }
   return false;
 }
@@ -338,7 +359,7 @@ consteval const char *create_help_string() {
     s += '\n';
   }
 
-  template for (constexpr auto field : optionals) {
+  template for (constexpr auto field : positionals) {
     if (not_emptystring(field.description)) {
       s += "   ";
       s += field.long_name;
@@ -417,6 +438,13 @@ std::expected<T, const char *> parse_args(int argc, const char **argv) {
     if (!optional_result.has_value()) {
       return std::unexpected(optional_result.error());
     }
+  }
+
+  if (argp < argc) { // We encountered an unexpected positional argument
+    err_return_msg = "Error: Unknown argument: ";
+    err_return_msg += argv[argp];
+    err_return_msg += '\n';
+    return std::unexpected(err_return_msg.c_str());
   }
 
   return ret;
