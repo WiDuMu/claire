@@ -4,6 +4,13 @@
 #include <optional>
 #include "claire.hpp"
 
+enum GreetingStyles {
+    Normal,
+    Italic,
+    Bold,
+    BoldItalic
+};
+
 struct
 [[= claire::Description("Revolutionary helpstring printer")]]
 ServerConfig {
@@ -18,6 +25,9 @@ ServerConfig {
 
   [[= claire::Description("Verbose logging"), = claire::Shortname("v")]]
   bool verbose;
+
+  [[= claire::Description("Style of text to use")]]
+  std::optional<GreetingStyles> style;
 };
 
 template <typename T>
@@ -48,6 +58,10 @@ int main(int argc, const char** argv) {
 
   if (cfg->verbose) {
     std::cout << "Verbose logging enabled" << "\n";
+  }
+
+  if (cfg->style.has_value()) {
+      std::cout << "Style: " << (long) cfg->style.value() << '\n';
   }
 
   for (int i = 0; i < cfg->num; i++) {

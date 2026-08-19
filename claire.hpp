@@ -8,12 +8,17 @@
 #ifndef CLAIRE_HPP
 #define CLAIRE_HPP
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cstddef>
 #include <cstring>
 #include <expected>
+#include <locale>
 #include <meta>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -102,6 +107,20 @@ inline std::string err_return_msg;
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+[[nodiscard]] constexpr char ascii_tolower(const char c) noexcept {
+  if (c >= 'A' && c <= 'Z')
+    return c + 32;
+  return c;
+}
+
+[[nodiscard]] constexpr std::string
+ascii_tolower(const std::string_view v) noexcept {
+  std::string s{v};
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](const char c) { return ascii_tolower(c); });
+  return s;
+}
+
 /// Checks if a std::meta::info represents a type that is the same as T
 template <std::meta::info i, typename T>
 [[nodiscard]] consteval bool same_type_as() noexcept {
@@ -112,7 +131,7 @@ template <std::meta::info i, typename T>
 }
 
 /// Checks if a C string is empty
-constexpr inline bool not_emptystring(const char *s) {
+[[nodiscard]] constexpr inline bool not_emptystring(const char *s) noexcept {
   return s && s[0] != '\0';
 }
 
@@ -193,6 +212,25 @@ template <typename T>
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
+|                               Type Concepts                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+template <typename T>
+struct is_optional_enum : std::false_type {};
+
+template <typename E>
+  requires std::is_enum_v<E>
+struct is_optional_enum<std::optional<E>> : std::true_type {};
+
+/// Is an enum stored inside a std::optional?
+/// #TODO generalize this to any type constructable using parse_arg stored
+/// inside std::optional
+template <typename T>
+concept OptionalEnum = is_optional_enum<T>::value;
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
 |                               Value parsers                                |
 |                                                                            |
 +---------------------------------------------------------------------------*/
@@ -209,22 +247,51 @@ template <typename T>
   return std::nullopt;
 }
 
+/// Specialization of generic function parse_arg for enum types
+template <typename T>
+  requires std::is_enum_v<T>
+[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+  static_assert(std::meta::is_enumerable_type(^^T), "Requires an enum");
+  constexpr static auto enum_members =
+      std::define_static_array(std::meta::enumerators_of(^^T));
+
+  if (!str) {
+    return std::nullopt;
+  }
+
+  template for (constexpr auto member : enum_members) {
+    constexpr auto display_name = std::meta::display_string_of(member);
+    constexpr auto cli_name =
+        std::define_static_string(ascii_tolower(display_name));
+    /// #TODO stricmp
+    if (strcmp(cli_name, str) == 0) {
+      constexpr T val = [:member:];
+      return val;
+    }
+  }
+  return std::nullopt;
+}
+
+// For an optional containing an enum
+template <OptionalEnum T>
+[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+  using EnumT = T::value_type;
+  auto val = parse_arg<EnumT>(str);
+  if (val.has_value()) {
+    return val.value();
+  }
+  return std::nullopt;
+}
+
 /// Specialization of generic function parse_arg for numeric types
 /// Uses parse_numeric
 template <typename T>
   requires std::integral<T> || std::floating_point<T>
 [[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
-  return parse_numeric<T>(str);
-}
-
-/// Generic form of parse_arg for types that can be constructed from strings
-template <typename T>
-[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
-  try {
-    return T{str};
-  } catch (...) {
+  if (!str) {
     return std::nullopt;
   }
+  return parse_numeric<T>(str);
 }
 
 /// If a argument is a boolean type, if it exists at all it is true
@@ -232,6 +299,20 @@ template <>
 [[nodiscard]] std::optional<bool>
 parse_arg<bool>([[maybe_unused]] const char *str) noexcept {
   return true;
+}
+
+/// Generic form of parse_arg for types that can be constructed from strings
+template <typename T>
+  requires std::constructible_from<T, const char *>
+[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+  if (!str) {
+    return std::nullopt;
+  }
+  try {
+    return T{str};
+  } catch (...) {
+    return std::nullopt;
+  }
 }
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
@@ -264,6 +345,7 @@ parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
       return std::unexpected(err_parsing_msg);
     }
   }
+  return false; // This should be impossible?
 }
 
 template <typename T>
@@ -320,7 +402,7 @@ parse_optionals(T &ret, int const argc, int &argp,
     } else {
       return true;
     }
-end_of_loop:
+  end_of_loop:
   }
   return false;
 }
@@ -334,7 +416,7 @@ end_of_loop:
 /// Generate a help string for your arguments
 template <typename T>
   requires std::is_class_v<T>
-consteval const char *create_help_string() {
+[[nodiscard]] consteval const char *create_help_string() {
   std::string s;
 
   constexpr auto program_desc = Description::extract<^^T>();
@@ -394,7 +476,8 @@ consteval const char *create_help_string() {
 /// Parse arguments into the provided struct type
 template <typename T>
   requires std::is_class_v<T>
-std::expected<T, const char *> parse_args(int argc, const char **argv) {
+[[nodiscard]] constexpr std::expected<T, const char *>
+parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_positional_fields<T>();
   T ret{};
   int argp = 1;

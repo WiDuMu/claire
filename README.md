@@ -60,3 +60,4 @@ Options:
 - [ ] Bypassing flags (flags which bypass positional requirements, i.e. --help)
 - [ ] Unit Testing
 - [ ] Subcommands
+- [ ] Proper enum types
