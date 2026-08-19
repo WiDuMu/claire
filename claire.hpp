@@ -250,7 +250,7 @@ concept OptionalEnum = is_optional_enum<T>::value;
 /// If a argument is a boolean type, if it exists at all it is true
 template <typename T>
   requires std::same_as<T, bool>
-[[nodiscard]] inline std::optional<bool>
+[[nodiscard]] constexpr inline std::optional<bool>
 parse_arg([[maybe_unused]] const char* str) noexcept {
   return true;
 }
@@ -258,7 +258,7 @@ parse_arg([[maybe_unused]] const char* str) noexcept {
 /// Specialization of generic function parse_arg for enum types
 template <typename T>
   requires std::is_enum_v<T>
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   static_assert(std::meta::is_enumerable_type(^^T), "Requires an enum");
   constexpr static auto enum_members =
       std::define_static_array(std::meta::enumerators_of(^^T));
@@ -280,7 +280,7 @@ template <typename T>
 
 // For an optional containing an enum
 template <OptionalEnum T>
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   using EnumT = T::value_type;
   auto val = parse_arg<EnumT>(str);
   if (val.has_value()) { return val.value(); }
@@ -292,7 +292,7 @@ template <OptionalEnum T>
 template <typename T>
   requires(std::integral<T> || std::floating_point<T>) &&
           (!std::same_as<T, bool>)
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   size_t len = std::strlen(str);
   T val;
@@ -304,7 +304,7 @@ template <typename T>
 /// Generic form of parse_arg for types that can be constructed from strings
 template <typename T>
   requires std::constructible_from<T, const char*> && (!std::same_as<T, bool>)
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   try {
     return T{str};
@@ -343,11 +343,14 @@ template <typename T>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
+
+  if (!argv) { return std::unexpected("Error: argv is null?"); }
+
   for (; argp < argc; argp++) {
     const char* arg = argv[argp];
 
     // Is it a optional argument?
-    if (argv && arg[0] == '-') {
+    if (arg[0] == '-') {
 
       // Short optional arugment
       if (arg[1] != '\0' && arg[1] != '-') {
