@@ -39,11 +39,31 @@ template <std::meta::info i, typename T>
   return std::define_static_string("");
 }
 
+/// Check if the given value has an annotation of the type given
+template <std::meta::info i, typename T>
+[[nodiscard]] consteval bool has_annotation_of_type() noexcept {
+  constexpr static auto annotations_length =
+      std::meta::annotations_of_with_type(i, ^^const T).size();
+  return annotations_length > 0;
+}
+
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                                  Structs                                   |
 |                                                                            |
 +---------------------------------------------------------------------------*/
+
+/// Marks an optional argument as a "bypassing" argument.
+/// When one of these are detected, parsing ends as soon as the flag is
+/// detected. To avoid unintended behavior, bypassing arugments should be
+/// checked first.
+///
+/// This option is intended for flags that cause the program to ignore the rest
+/// of the arguments, so verifying that the rest of arguments parse correctly is
+/// counter productive, e.g. --help or --version
+///
+/// #TODO figure out how to implement this without a second parsing pass
+struct Bypass {};
 
 /// A description of a parameter
 /// Usage:
@@ -63,6 +83,11 @@ struct Description {
   }
 };
 
+// Marks an optional field as a positional optional
+// It will have positional semantics, but will be parsed as an optional value,
+// and not error if not specified
+struct Positional {};
+
 /// A optional short name for a parameter
 /// Usage:
 /// struct Args {
@@ -81,6 +106,14 @@ struct Shortname {
   }
 };
 
+/// Which pass this argument needs to be processed on
+enum ParsePass {
+    Position,
+    Option,
+    OptionalPosition,
+    OptionalBypass
+};
+
 /// Internal structure used to store details of each argument provided
 struct ArgumentDeets {
   const char *long_name;
@@ -88,7 +121,7 @@ struct ArgumentDeets {
   const char *description;
   std::meta::info type;
   std::meta::info val;
-  bool optional;
+  ParsePass pass;
 };
 
 /*---------------------------------------------------------------------------+
@@ -159,40 +192,37 @@ template <typename T>
     const char *member_desc = Description::extract<member>();
     const char *member_short_name = Shortname::extract<member>();
     bool opt = is_optional<member_type>();
+    ParsePass pass = opt ? Option : Position;
+    if (opt) {
+        bool pos = has_annotation_of_type<member, Positional>();
+        bool bypass = has_annotation_of_type<member, Bypass>();
+        // static_assert(!(pos && bypass), "Cannot be both bypass and positional at the same time");
+        if (pos) {
+            pass = OptionalPosition;
+        } else if (bypass) {
+            pass = OptionalBypass;
+        }
+    }
     ArgumentDeets deets{
-        member_name, member_short_name, member_desc, member_type, member, opt};
+        member_name, member_short_name, member_desc, member_type, member, pass};
     fields.push_back(deets);
   }
 
   return std::define_static_array(fields);
 }
 
-/// Filters the fields to only return the positionals
+/// Filters the fields to only return the options that are parsed during a given pass
 /// #TODO This is inefficient
-template <typename T>
-[[nodiscard]] constexpr auto get_positional_fields() noexcept {
-  constexpr static auto fields = get_fields<T>();
-  std::vector<ArgumentDeets> val;
+template<typename T, ParsePass pass>
+[[nodiscard]] constexpr auto get_pass_fields() noexcept {
+    constexpr static auto fields = get_fields<T>();
+    std::vector<ArgumentDeets> val;
 
-  for (auto field : fields) {
-    if (!field.optional) { val.push_back(field); }
-  }
+    for (auto field : fields) {
+      if (field.pass == pass) { val.push_back(field); }
+    }
 
-  return std::define_static_array(val);
-}
-
-/// Filters the fields to only return the optional values
-/// #TODO this is inefficient
-template <typename T>
-[[nodiscard]] constexpr auto get_optional_fields() noexcept {
-  constexpr static auto fields = get_fields<T>();
-  std::vector<ArgumentDeets> val;
-
-  for (auto field : fields) {
-    if (field.optional) { val.push_back(field); }
-  }
-
-  return std::define_static_array(val);
+    return std::define_static_array(val);
 }
 
 /*---------------------------------------------------------------------------+
@@ -322,7 +352,7 @@ template <typename T>
 [[nodiscard]] inline std::expected<bool, const char *>
 parse_optionals(T &ret, int const argc, int &argp,
                 const char **&argv) noexcept {
-  constexpr static auto optionals = get_optional_fields<T>();
+  constexpr static auto optionals = get_pass_fields<T, Option>();
   for (; argp < argc; argp++) {
     const char *arg = argv[argp];
 
@@ -392,8 +422,8 @@ template <typename T>
     s += "\n\n";
   }
 
-  constexpr auto static positionals = get_positional_fields<T>();
-  constexpr auto static optionals = get_optional_fields<T>();
+  constexpr auto static positionals = get_pass_fields<T, Position>();
+  constexpr auto static optionals = get_pass_fields<T, Option>();
 
   if (positionals.size()) {
     s += "USAGE:";
@@ -442,7 +472,7 @@ template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] constexpr std::expected<T, const char *>
 parse_args(int argc, const char **argv) {
-  constexpr static auto positionals = get_positional_fields<T>();
+  constexpr static auto positionals = get_pass_fields<T, Position>();
   T ret{};
   int argp = 1;
 
