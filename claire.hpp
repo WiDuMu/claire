@@ -9,6 +9,7 @@
 #define CLAIRE_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <charconv>
 #include <cstddef>
@@ -107,12 +108,7 @@ struct Shortname {
 };
 
 /// Which pass this argument needs to be processed on
-enum ParsePass {
-    Position,
-    Option,
-    OptionalPosition,
-    OptionalBypass
-};
+enum ParsePass { Position, Option, OptionalPosition, OptionalBypass };
 
 /// Internal structure used to store details of each argument provided
 struct ArgumentDeets {
@@ -194,14 +190,15 @@ template <typename T>
     bool opt = is_optional<member_type>();
     ParsePass pass = opt ? Option : Position;
     if (opt) {
-        bool pos = has_annotation_of_type<member, Positional>();
-        bool bypass = has_annotation_of_type<member, Bypass>();
-        // static_assert(!(pos && bypass), "Cannot be both bypass and positional at the same time");
-        if (pos) {
-            pass = OptionalPosition;
-        } else if (bypass) {
-            pass = OptionalBypass;
-        }
+      constexpr bool pos = has_annotation_of_type<member, Positional>();
+      constexpr bool bypass = has_annotation_of_type<member, Bypass>();
+      static_assert(!(pos && bypass),
+                    "Cannot be both bypass and positional at the same time");
+      if (pos) {
+        pass = OptionalPosition;
+      } else if (bypass) {
+        pass = OptionalBypass;
+      }
     }
     ArgumentDeets deets{
         member_name, member_short_name, member_desc, member_type, member, pass};
@@ -211,18 +208,18 @@ template <typename T>
   return std::define_static_array(fields);
 }
 
-/// Filters the fields to only return the options that are parsed during a given pass
-/// #TODO This is inefficient
-template<typename T, ParsePass pass>
+/// Filters the fields to only return the options that are parsed during a given
+/// pass #TODO This is inefficient
+template <typename T, ParsePass pass>
 [[nodiscard]] constexpr auto get_pass_fields() noexcept {
-    constexpr static auto fields = get_fields<T>();
-    std::vector<ArgumentDeets> val;
+  constexpr static auto fields = get_fields<T>();
+  std::vector<ArgumentDeets> val;
 
-    for (auto field : fields) {
-      if (field.pass == pass) { val.push_back(field); }
-    }
+  for (auto field : fields) {
+    if (field.pass == pass) { val.push_back(field); }
+  }
 
-    return std::define_static_array(val);
+  return std::define_static_array(val);
 }
 
 /*---------------------------------------------------------------------------+
@@ -473,6 +470,8 @@ template <typename T>
 [[nodiscard]] constexpr std::expected<T, const char *>
 parse_args(int argc, const char **argv) {
   constexpr static auto positionals = get_pass_fields<T, Position>();
+  constexpr static auto optional_positionals =
+      get_pass_fields<T, OptionalPosition>();
   T ret{};
   int argp = 1;
 
@@ -507,6 +506,31 @@ parse_args(int argc, const char **argv) {
       }
     } else {
       return std::unexpected(err_not_exists_string);
+    }
+  }
+
+  template for (constexpr auto opt_pos : optional_positionals) {
+    constexpr const char *const err_parsing_string = std::define_static_string(
+        std::string{"Error: Failed parsing argument "} + opt_pos.long_name +
+        '\n');
+
+    auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
+
+    if (!optional_result.has_value()) {
+      return std::unexpected(optional_result.error());
+    }
+
+    if (argp < argc) { // Positional argument exists
+      std::optional<typename[:opt_pos.type:]> val =
+          parse_arg<typename[:opt_pos.type:]>(argv[argp]);
+      if (val.has_value()) {
+        argp++;
+        ret.[:opt_pos.val:] = *val;
+      } else {
+        return std::unexpected(err_parsing_string);
+      }
+    } else {
+      break;
     }
   }
 

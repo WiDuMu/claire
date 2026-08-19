@@ -26,7 +26,7 @@ ServerConfig {
   [[= claire::Description("Verbose logging"), = claire::Shortname("v")]]
   bool verbose;
 
-  [[= claire::Description("Style of text to use")]]
+  [[= claire::Description("Style of text to use"), = claire::Positional()]]
   std::optional<GreetingStyles> style;
 };
 

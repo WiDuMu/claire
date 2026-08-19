@@ -56,7 +56,7 @@ Options:
 ```
 
 # Todo
-- [ ] Optional positionals
+- [X] Optional positionals
 - [ ] Bypassing flags (flags which bypass positional requirements, i.e. --help)
 - [ ] Unit Testing
 - [ ] Subcommands
