@@ -323,19 +323,17 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
     return true;
-  } else {
-
-    if ((argp + 1) >= argc) { return std::unexpected(err_missing_msg); }
-
-    ++argp; // #TODO: add in = handling to args. i.e. --file=filename
-    auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
-    if (result) {
-      ret.[:deets.val:] = result.value();
-      return true;
-    } else {
-      return std::unexpected(err_parsing_msg);
-    }
   }
+
+  if ((argp + 1) >= argc) { return std::unexpected(err_missing_msg); }
+
+  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
+  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+  if (result) {
+    ret.[:deets.val:] = result.value();
+    return true;
+  }
+  return std::unexpected(err_parsing_msg);
 }
 
 template <typename T>
