@@ -75,13 +75,13 @@ AllowAllArgumentsOnNextLine: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowBreakBeforeNoexceptSpecifier: Never
 AllowBreakBeforeQtProperty: false
-AllowShortBlocksOnASingleLine: Never
+AllowShortBlocksOnASingleLine: true
 AllowShortCaseExpressionOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortCompoundRequirementOnASingleLine: true
 AllowShortEnumsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: All
-AllowShortIfStatementsOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: false
 AllowShortNamespacesOnASingleLine: false
@@ -318,4 +318,3 @@ WhitespaceSensitiveMacros:
   - STRINGIZE
 WrapNamespaceBodyWithEmptyLines: Leave
 ...
-

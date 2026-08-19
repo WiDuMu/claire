@@ -33,9 +33,7 @@ template <std::meta::info i, typename T>
 
   template for (constexpr auto name : shortnames) {
     constexpr const char *txt = std::meta::extract<const T>(name).text;
-    if (txt) {
-      return txt;
-    }
+    if (txt) { return txt; }
   }
 
   return std::define_static_string("");
@@ -108,8 +106,7 @@ inline std::string err_return_msg;
 +---------------------------------------------------------------------------*/
 
 [[nodiscard]] constexpr char ascii_tolower(const char c) noexcept {
-  if (c >= 'A' && c <= 'Z')
-    return c + 32;
+  if (c >= 'A' && c <= 'Z') return c + 32;
   return c;
 }
 
@@ -124,9 +121,7 @@ ascii_tolower(const std::string_view v) noexcept {
 /// Checks if a std::meta::info represents a type that is the same as T
 template <std::meta::info i, typename T>
 [[nodiscard]] consteval bool same_type_as() noexcept {
-  if (!std::meta::is_type(i)) {
-    return std::meta::type_of(i) == ^^T;
-  }
+  if (!std::meta::is_type(i)) { return std::meta::type_of(i) == ^^T; }
   return i == ^^T;
 }
 
@@ -139,17 +134,11 @@ template <std::meta::info i, typename T>
 /// or wrapped in a std::optional
 template <std::meta::info type>
 [[nodiscard]] consteval bool is_optional() noexcept {
-  if (!std::meta::is_type(type)) {
-    return false;
-  }
+  if (!std::meta::is_type(type)) { return false; }
 
-  if (type == ^^bool) {
-    return true;
-  }
+  if (type == ^^bool) { return true; }
 
-  if (!std::meta::has_template_arguments(type)) {
-    return false;
-  }
+  if (!std::meta::has_template_arguments(type)) { return false; }
 
   return std::meta::template_of(type) == ^^std::optional;
 }
@@ -186,9 +175,7 @@ template <typename T>
   std::vector<ArgumentDeets> val;
 
   for (auto field : fields) {
-    if (!field.optional) {
-      val.push_back(field);
-    }
+    if (!field.optional) { val.push_back(field); }
   }
 
   return std::define_static_array(val);
@@ -202,9 +189,7 @@ template <typename T>
   std::vector<ArgumentDeets> val;
 
   for (auto field : fields) {
-    if (field.optional) {
-      val.push_back(field);
-    }
+    if (field.optional) { val.push_back(field); }
   }
 
   return std::define_static_array(val);
@@ -241,9 +226,7 @@ template <typename T>
   size_t len = std::strlen(str);
   T val;
   auto result = std::from_chars(str, str + len, val);
-  if (result) {
-    return val;
-  }
+  if (result) { return val; }
   return std::nullopt;
 }
 
@@ -255,9 +238,7 @@ template <typename T>
   constexpr static auto enum_members =
       std::define_static_array(std::meta::enumerators_of(^^T));
 
-  if (!str) {
-    return std::nullopt;
-  }
+  if (!str) { return std::nullopt; }
 
   template for (constexpr auto member : enum_members) {
     constexpr auto display_name = std::meta::display_string_of(member);
@@ -277,9 +258,7 @@ template <OptionalEnum T>
 [[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
   using EnumT = T::value_type;
   auto val = parse_arg<EnumT>(str);
-  if (val.has_value()) {
-    return val.value();
-  }
+  if (val.has_value()) { return val.value(); }
   return std::nullopt;
 }
 
@@ -288,9 +267,7 @@ template <OptionalEnum T>
 template <typename T>
   requires std::integral<T> || std::floating_point<T>
 [[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
-  if (!str) {
-    return std::nullopt;
-  }
+  if (!str) { return std::nullopt; }
   return parse_numeric<T>(str);
 }
 
@@ -305,14 +282,10 @@ parse_arg<bool>([[maybe_unused]] const char *str) noexcept {
 template <typename T>
   requires std::constructible_from<T, const char *>
 [[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
-  if (!str) {
-    return std::nullopt;
-  }
+  if (!str) { return std::nullopt; }
   try {
     return T{str};
-  } catch (...) {
-    return std::nullopt;
-  }
+  } catch (...) { return std::nullopt; }
 }
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
@@ -323,18 +296,15 @@ parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
   constexpr const char *const err_missing_msg = std::define_static_string(
       std::string{"Error: missing value for argument '"} + name + "'\n");
 
-  if (strcmp(name, argv[argp] + offset)) { // If we don't match bail
-    return false;
-  }
+  // If we don't match, bail
+  if (strcmp(name, argv[argp] + offset)) { return false; }
 
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
     return true;
   } else {
 
-    if ((argp + 1) >= argc) {
-      return std::unexpected(err_missing_msg);
-    }
+    if ((argp + 1) >= argc) { return std::unexpected(err_missing_msg); }
 
     ++argp; // #TODO: add in = handling to args. i.e. --file=filename
     auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
@@ -367,9 +337,7 @@ parse_optionals(T &ret, int const argc, int &argp,
           if constexpr (not_emptystring(option.short_name)) {
             auto result = parse_optional<T, option, 1, option.short_name>(
                 ret, argc, argp, argv);
-            if (!result.has_value()) {
-              return std::unexpected(result.error());
-            }
+            if (!result.has_value()) { return std::unexpected(result.error()); }
             if (*result) {
               goto end_of_loop; // #TODO: Fix this without goto
             }
@@ -385,9 +353,7 @@ parse_optionals(T &ret, int const argc, int &argp,
         template for (constexpr auto option : optionals) {
           auto result = parse_optional<T, option, 2, option.long_name>(
               ret, argc, argp, argv);
-          if (!result.has_value()) {
-            return std::unexpected(result.error());
-          }
+          if (!result.has_value()) { return std::unexpected(result.error()); }
           if (*result) {
             goto end_of_loop; // #TODO: Fix this without goto
           }
@@ -451,9 +417,7 @@ template <typename T>
     }
   }
 
-  if (optionals.size()) {
-    s += "Options:\n";
-  }
+  if (optionals.size()) { s += "Options:\n"; }
 
   template for (constexpr auto field : optionals) {
     s += "   ";
