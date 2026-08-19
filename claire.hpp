@@ -247,16 +247,6 @@ concept OptionalEnum = is_optional_enum<T>::value;
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-/// Parses a numeric value into from a c string
-template <typename T>
-[[nodiscard]] inline std::optional<T> parse_numeric(const char* str) noexcept {
-  size_t len = std::strlen(str);
-  T val;
-  auto result = std::from_chars(str, str + len, val);
-  if (result) { return val; }
-  return std::nullopt;
-}
-
 /// Specialization of generic function parse_arg for enum types
 template <typename T>
   requires std::is_enum_v<T>
@@ -295,7 +285,11 @@ template <typename T>
   requires std::integral<T> || std::floating_point<T>
 [[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
-  return parse_numeric<T>(str);
+  size_t len = std::strlen(str);
+  T val;
+  auto result = std::from_chars(str, str + len, val);
+  if (result) { return val; }
+  return std::nullopt;
 }
 
 /// If a argument is a boolean type, if it exists at all it is true
@@ -342,7 +336,6 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
       return std::unexpected(err_parsing_msg);
     }
   }
-  return false; // This should be impossible?
 }
 
 template <typename T>
