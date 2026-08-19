@@ -28,12 +28,12 @@ namespace claire {
 
 /// Extract the 'text' field from an annotated struct
 template <std::meta::info i, typename T>
-[[nodiscard]] consteval const char *extract_text_annotation() noexcept {
+[[nodiscard]] consteval const char* extract_text_annotation() noexcept {
   constexpr static auto shortnames = std::define_static_array(
       std::meta::annotations_of_with_type(i, ^^const T));
 
   template for (constexpr auto name : shortnames) {
-    constexpr const char *txt = std::meta::extract<const T>(name).text;
+    constexpr const char* txt = std::meta::extract<const T>(name).text;
     if (txt) { return txt; }
   }
 
@@ -73,13 +73,13 @@ struct Bypass {};
 ///    const char* user_name;
 /// }
 struct Description {
-  const char *text;
+  const char* text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
   [[nodiscard]] consteval Description(const std::string_view txt) noexcept
       : text(std::define_static_string(txt)) {}
   template <std::meta::info i>
-  [[nodiscard]] consteval static const char *extract() noexcept {
+  [[nodiscard]] consteval static const char* extract() noexcept {
     return extract_text_annotation<i, Description>();
   }
 };
@@ -96,13 +96,13 @@ struct Positional {};
 ///    const char* user_name;
 /// }
 struct Shortname {
-  const char *text;
+  const char* text;
   // For some reason string literals are not actually static lifetime so the
   // compiler will freak out if you don't define it
   [[nodiscard]] consteval Shortname(const std::string_view txt) noexcept
       : text(std::define_static_string(txt)) {}
   template <std::meta::info i>
-  [[nodiscard]] consteval static const char *extract() noexcept {
+  [[nodiscard]] consteval static const char* extract() noexcept {
     return extract_text_annotation<i, Shortname>();
   }
 };
@@ -112,9 +112,9 @@ enum ParsePass { Position, Option, OptionalPosition, OptionalBypass };
 
 /// Internal structure used to store details of each argument provided
 struct ArgumentDeets {
-  const char *long_name;
-  const char *short_name;
-  const char *description;
+  const char* long_name;
+  const char* short_name;
+  const char* description;
   std::meta::info type;
   std::meta::info val;
   ParsePass pass;
@@ -155,7 +155,7 @@ template <std::meta::info i, typename T>
 }
 
 /// Checks if a C string is empty
-[[nodiscard]] constexpr inline bool not_emptystring(const char *s) noexcept {
+[[nodiscard]] constexpr inline bool not_emptystring(const char* s) noexcept {
   return s && s[0] != '\0';
 }
 
@@ -183,10 +183,10 @@ template <typename T>
 
   template for (constexpr auto member : members) {
     constexpr std::meta::info member_type = std::meta::type_of(member);
-    const char *member_name =
+    const char* member_name =
         std::define_static_string(std::meta::identifier_of(member));
-    const char *member_desc = Description::extract<member>();
-    const char *member_short_name = Shortname::extract<member>();
+    const char* member_desc = Description::extract<member>();
+    const char* member_short_name = Shortname::extract<member>();
     bool opt = is_optional<member_type>();
     ParsePass pass = opt ? Option : Position;
     if (opt) {
@@ -249,7 +249,7 @@ concept OptionalEnum = is_optional_enum<T>::value;
 
 /// Parses a numeric value into from a c string
 template <typename T>
-[[nodiscard]] inline std::optional<T> parse_numeric(const char *str) noexcept {
+[[nodiscard]] inline std::optional<T> parse_numeric(const char* str) noexcept {
   size_t len = std::strlen(str);
   T val;
   auto result = std::from_chars(str, str + len, val);
@@ -260,7 +260,7 @@ template <typename T>
 /// Specialization of generic function parse_arg for enum types
 template <typename T>
   requires std::is_enum_v<T>
-[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   static_assert(std::meta::is_enumerable_type(^^T), "Requires an enum");
   constexpr static auto enum_members =
       std::define_static_array(std::meta::enumerators_of(^^T));
@@ -271,7 +271,7 @@ template <typename T>
     constexpr auto display_name = std::meta::display_string_of(member);
     constexpr auto cli_name =
         std::define_static_string(ascii_tolower(display_name));
-    /// #TODO stricmp
+
     if (strcmp(cli_name, str) == 0) {
       constexpr T val = [:member:];
       return val;
@@ -282,7 +282,7 @@ template <typename T>
 
 // For an optional containing an enum
 template <OptionalEnum T>
-[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   using EnumT = T::value_type;
   auto val = parse_arg<EnumT>(str);
   if (val.has_value()) { return val.value(); }
@@ -293,7 +293,7 @@ template <OptionalEnum T>
 /// Uses parse_numeric
 template <typename T>
   requires std::integral<T> || std::floating_point<T>
-[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   return parse_numeric<T>(str);
 }
@@ -301,26 +301,26 @@ template <typename T>
 /// If a argument is a boolean type, if it exists at all it is true
 template <>
 [[nodiscard]] std::optional<bool>
-parse_arg<bool>([[maybe_unused]] const char *str) noexcept {
+parse_arg<bool>([[maybe_unused]] const char* str) noexcept {
   return true;
 }
 
 /// Generic form of parse_arg for types that can be constructed from strings
 template <typename T>
-  requires std::constructible_from<T, const char *>
-[[nodiscard]] std::optional<T> parse_arg(const char *str) noexcept {
+  requires std::constructible_from<T, const char*>
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   try {
     return T{str};
   } catch (...) { return std::nullopt; }
 }
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char *name>
-[[nodiscard]] inline std::expected<bool, const char *>
-parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
-  constexpr const char *const err_parsing_msg = std::define_static_string(
+template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+[[nodiscard]] inline std::expected<bool, const char*>
+parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
+  constexpr const char* const err_parsing_msg = std::define_static_string(
       std::string{"Error: failed to parse argument '"} + name + "'\n");
-  constexpr const char *const err_missing_msg = std::define_static_string(
+  constexpr const char* const err_missing_msg = std::define_static_string(
       std::string{"Error: missing value for argument '"} + name + "'\n");
 
   // If we don't match, bail
@@ -346,12 +346,12 @@ parse_optional(T &ret, int const argc, int &argp, const char **&argv) noexcept {
 }
 
 template <typename T>
-[[nodiscard]] inline std::expected<bool, const char *>
-parse_optionals(T &ret, int const argc, int &argp,
-                const char **&argv) noexcept {
+[[nodiscard]] inline std::expected<bool, const char*>
+parse_optionals(T& ret, int const argc, int& argp,
+                const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
   for (; argp < argc; argp++) {
-    const char *arg = argv[argp];
+    const char* arg = argv[argp];
 
     // Is it a optional argument?
     if (argv && arg[0] == '-') {
@@ -409,7 +409,7 @@ parse_optionals(T &ret, int const argc, int &argp,
 /// Generate a help string for your arguments
 template <typename T>
   requires std::is_class_v<T>
-[[nodiscard]] consteval const char *create_help_string() {
+[[nodiscard]] consteval const char* create_help_string() {
   std::string s;
 
   constexpr auto program_desc = Description::extract<^^T>();
@@ -467,8 +467,8 @@ template <typename T>
 /// Parse arguments into the provided struct type
 template <typename T>
   requires std::is_class_v<T>
-[[nodiscard]] constexpr std::expected<T, const char *>
-parse_args(int argc, const char **argv) {
+[[nodiscard]] constexpr std::expected<T, const char*>
+parse_args(int argc, const char** argv) {
   constexpr static auto positionals = get_pass_fields<T, Position>();
   constexpr static auto optional_positionals =
       get_pass_fields<T, OptionalPosition>();
@@ -481,10 +481,10 @@ parse_args(int argc, const char **argv) {
   // process the positional, and continue. #TODO: currently a flag doesn't
   // process correctly
   template for (constexpr auto field : positionals) {
-    constexpr const char *const err_parsing_string = std::define_static_string(
+    constexpr const char* const err_parsing_string = std::define_static_string(
         std::string{"Error: Failed parsing argument "} + field.long_name +
         '\n');
-    constexpr const char *const err_not_exists_string =
+    constexpr const char* const err_not_exists_string =
         std::define_static_string(
             std::string{"Error: Missing value for argument "} +
             field.long_name + '\n');
@@ -510,7 +510,7 @@ parse_args(int argc, const char **argv) {
   }
 
   template for (constexpr auto opt_pos : optional_positionals) {
-    constexpr const char *const err_parsing_string = std::define_static_string(
+    constexpr const char* const err_parsing_string = std::define_static_string(
         std::string{"Error: Failed parsing argument "} + opt_pos.long_name +
         '\n');
 
