@@ -247,6 +247,14 @@ concept OptionalEnum = is_optional_enum<T>::value;
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+/// If a argument is a boolean type, if it exists at all it is true
+template <typename T>
+  requires std::same_as<T, bool>
+[[nodiscard]] inline std::optional<bool>
+parse_arg([[maybe_unused]] const char* str) noexcept {
+  return true;
+}
+
 /// Specialization of generic function parse_arg for enum types
 template <typename T>
   requires std::is_enum_v<T>
@@ -282,7 +290,8 @@ template <OptionalEnum T>
 /// Specialization of generic function parse_arg for numeric types
 /// Uses parse_numeric
 template <typename T>
-  requires std::integral<T> || std::floating_point<T>
+  requires(std::integral<T> || std::floating_point<T>) &&
+          (!std::same_as<T, bool>)
 [[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   size_t len = std::strlen(str);
@@ -292,16 +301,9 @@ template <typename T>
   return std::nullopt;
 }
 
-/// If a argument is a boolean type, if it exists at all it is true
-template <>
-[[nodiscard]] std::optional<bool>
-parse_arg<bool>([[maybe_unused]] const char* str) noexcept {
-  return true;
-}
-
 /// Generic form of parse_arg for types that can be constructed from strings
 template <typename T>
-  requires std::constructible_from<T, const char*>
+  requires std::constructible_from<T, const char*> && (!std::same_as<T, bool>)
 [[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   try {
