@@ -137,7 +137,7 @@ inline std::string err_return_msg;
 
 // This is a quick and dirty way of getting a tolower function to work
 // in a constexpr context.
-// #TODO Unicode handling, thought that is much more complicated.
+// #TODO Unicode handling, though that is much more complicated.
 [[nodiscard]] constexpr char ascii_tolower(const char c) noexcept {
   if (c >= 'A' && c <= 'Z') return c + 32;
   return c;
@@ -367,36 +367,35 @@ parse_optionals(T& ret, int const argc, int& argp,
                 ret, argc, argp, argv);
             if (!result.has_value()) { return std::unexpected(result.error()); }
             if (*result) {
-              goto end_of_loop; // #TODO: Fix this without goto
+              break;
+            } else {
+              err_return_msg = "Error: Unknown short argument: ";
+              err_return_msg += arg;
+              err_return_msg += '\n';
+              return std::unexpected(err_return_msg.c_str());
             }
           }
         }
 
-        err_return_msg = "Error: Unknown short argument: ";
-        err_return_msg += arg;
-        err_return_msg += '\n';
-
-        return std::unexpected(err_return_msg.c_str());
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
           auto result = parse_optional<T, option, 2, option.long_name>(
               ret, argc, argp, argv);
           if (!result.has_value()) { return std::unexpected(result.error()); }
           if (*result) {
-            goto end_of_loop; // #TODO: Fix this without goto
+            break;
+          } else {
+            err_return_msg = "Error: Unknown long argument: ";
+            err_return_msg += arg;
+            err_return_msg += '\n';
+
+            return std::unexpected(err_return_msg.c_str());
           }
         }
-
-        err_return_msg = "Error: Unknown long argument: ";
-        err_return_msg += arg;
-        err_return_msg += '\n';
-
-        return std::unexpected(err_return_msg.c_str());
       }
     } else {
       return true;
     }
-  end_of_loop:
   }
   return false;
 }
