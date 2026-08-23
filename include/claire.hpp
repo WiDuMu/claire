@@ -11,11 +11,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-#include <charconv>
 #include <cstddef>
 #include <cstring>
 #include <expected>
-#include <locale>
 #include <meta>
 #include <optional>
 #include <string>
@@ -126,6 +124,9 @@ struct ArgumentDeets {
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+// This is a static variable that stores heap-allocated error strings.
+// #TODO more testing to see if this results in effective use-after-frees due
+// to modifying the string that was returned to the program.
 inline std::string err_return_msg;
 
 /*---------------------------------------------------------------------------+
@@ -134,11 +135,15 @@ inline std::string err_return_msg;
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+// This is a quick and dirty way of getting a tolower function to work
+// in a constexpr context.
+// #TODO Unicode handling, thought that is much more complicated.
 [[nodiscard]] constexpr char ascii_tolower(const char c) noexcept {
   if (c >= 'A' && c <= 'Z') return c + 32;
   return c;
 }
 
+// Runs over the string view provided and returns a new string of it lowercase.
 [[nodiscard]] constexpr std::string
 ascii_tolower(const std::string_view v) noexcept {
   std::string s{v};
@@ -154,7 +159,7 @@ template <std::meta::info i, typename T>
   return i == ^^T;
 }
 
-/// Checks if a C string is empty
+/// Checks if a C string is not empty
 [[nodiscard]] constexpr inline bool not_emptystring(const char* s) noexcept {
   return s && s[0] != '\0';
 }
