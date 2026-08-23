@@ -419,6 +419,7 @@ template <typename T>
     s += "\n\n";
   }
 
+  // #TODO handle optional positionals here
   constexpr auto static positionals = get_pass_fields<T, Position>();
   constexpr auto static optionals = get_pass_fields<T, Option>();
 
