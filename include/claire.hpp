@@ -317,7 +317,7 @@ template <typename T>
 }
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
-[[nodiscard]] inline std::expected<bool, const char*>
+[[nodiscard]] constexpr inline std::expected<bool, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr const char* const err_parsing_msg = std::define_static_string(
       std::string{"Error: failed to parse argument '"} + name + "'\n");
@@ -344,7 +344,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
 }
 
 template <typename T>
-[[nodiscard]] inline std::expected<bool, const char*>
+[[nodiscard]] constexpr inline std::expected<bool, const char*>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
