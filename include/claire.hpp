@@ -422,6 +422,7 @@ template <typename T>
   // #TODO handle optional positionals here
   constexpr auto static positionals = get_pass_fields<T, Position>();
   constexpr auto static optionals = get_pass_fields<T, Option>();
+  constexpr auto static optionalPositionals = get_pass_fields<T, OptionalPosition>();
 
   if (positionals.size()) {
     s += "USAGE:";
@@ -432,10 +433,26 @@ template <typename T>
       s += ">";
     }
 
+    template for (constexpr auto field : optionalPositionals) {
+        s += " [";
+        s += field.long_name;
+        s += "]";
+    }
+
     s += '\n';
   }
 
   template for (constexpr auto field : positionals) {
+    if (not_emptystring(field.description)) {
+      s += "   ";
+      s += field.long_name;
+      s += " ";
+      s += field.description;
+      s += "\n";
+    }
+  }
+
+  template for (constexpr auto field : optionalPositionals) {
     if (not_emptystring(field.description)) {
       s += "   ";
       s += field.long_name;
