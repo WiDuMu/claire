@@ -293,11 +293,23 @@ template <OptionalEnum T>
 }
 
 /// Specialization of generic function parse_arg for numeric types
-/// Uses parse_numeric
 template <typename T>
-  requires(std::integral<T> || std::floating_point<T>) &&
-          (!std::same_as<T, bool>)
+  requires(std::integral<T>) && (!std::same_as<T, bool>)
 [[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  if (!str) { return std::nullopt; }
+  size_t len = std::strlen(str);
+  T val;
+  auto result = std::from_chars(str, str + len, val);
+  if (result) { return val; }
+  return std::nullopt;
+}
+
+/// Specialization of generic function parse_arg for floating point types
+/// not constexpr compatible because from_chars is not constexpr compatible for
+/// floating point types
+template <typename T>
+  requires(std::floating_point<T>) && (!std::same_as<T, bool>)
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   size_t len = std::strlen(str);
   T val;
@@ -422,7 +434,8 @@ template <typename T>
   // #TODO handle optional positionals here
   constexpr auto static positionals = get_pass_fields<T, Position>();
   constexpr auto static optionals = get_pass_fields<T, Option>();
-  constexpr auto static optionalPositionals = get_pass_fields<T, OptionalPosition>();
+  constexpr auto static optionalPositionals =
+      get_pass_fields<T, OptionalPosition>();
 
   if (positionals.size()) {
     s += "USAGE:";
@@ -434,9 +447,9 @@ template <typename T>
     }
 
     template for (constexpr auto field : optionalPositionals) {
-        s += " [";
-        s += field.long_name;
-        s += "]";
+      s += " [";
+      s += field.long_name;
+      s += "]";
     }
 
     s += '\n';
