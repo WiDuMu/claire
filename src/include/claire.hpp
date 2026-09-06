@@ -379,7 +379,7 @@ parse_optionals(T& ret, int const argc, int& argp,
             auto result = parse_optional<T, option, 1, option.short_name>(
                 ret, argc, argp, argv);
             if (!result.has_value()) { return std::unexpected(result.error()); }
-            if (*result) {
+            if (*result == Matched) {
             unknown_arg = false;
               break;
             }
@@ -398,7 +398,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           auto result = parse_optional<T, option, 2, option.long_name>(
               ret, argc, argp, argv);
           if (!result.has_value()) { return std::unexpected(result.error()); }
-          if (*result) {
+          if (*result == Matched) {
             unknown_arg = false;
             break;
           }
