@@ -234,17 +234,14 @@ template <typename T, ParsePass pass>
 +---------------------------------------------------------------------------*/
 
 template <typename T>
-struct is_optional_enum : std::false_type {};
+[[nodiscard]] consteval inline bool is_optional_type_fn() noexcept {
+    return std::meta::has_template_arguments(^^T) && (std::meta::template_of(^^T) == ^^std::optional);
+}
 
-template <typename E>
-  requires std::is_enum_v<E>
-struct is_optional_enum<std::optional<E>> : std::true_type {};
+static_assert(is_optional_type_fn<std::optional<long long unsigned int>>(), "std::optional<int> should be a specialization of std::optional");
 
-/// Is an enum stored inside a std::optional?
-/// #TODO generalize this to any type constructable using parse_arg stored
-/// inside std::optional
 template <typename T>
-concept OptionalEnum = is_optional_enum<T>::value;
+concept OptionalType = std::meta::has_template_arguments(^^T) && (std::meta::template_of(^^T) == ^^std::optional);
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -283,15 +280,6 @@ template <typename T>
   return std::nullopt;
 }
 
-// For an optional containing an enum
-template <OptionalEnum T>
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  using EnumT = T::value_type;
-  auto val = parse_arg<EnumT>(str);
-  if (val.has_value()) { return val.value(); }
-  return std::nullopt;
-}
-
 /// Specialization of generic function parse_arg for numeric types
 template <typename T>
   requires(std::integral<T>) && (!std::same_as<T, bool>)
@@ -320,12 +308,21 @@ template <typename T>
 
 /// Generic form of parse_arg for types that can be constructed from strings
 template <typename T>
-  requires std::constructible_from<T, const char*> && (!std::same_as<T, bool>)
+  requires std::constructible_from<T, const char*> && (!std::same_as<T, bool>) && (!is_optional_type_fn<T>())
 [[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   try {
     return T{str};
   } catch (...) { return std::nullopt; }
+}
+
+// For an optional containing an enum
+template <OptionalType T>
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  using R = T::value_type;
+  auto val = parse_arg<R>(str);
+  if (val.has_value()) { return val.value(); }
+  return std::nullopt;
 }
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>

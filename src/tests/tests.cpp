@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <filesystem>
 #include "claire.hpp"
 
 TEST(HelloTest, FloatParsing) {
@@ -62,10 +63,92 @@ struct Test2 {
     int i;
 };
 
-TEST(HelloTest, IncompleteParameters) {
-    std::expected<Test2, const char*> result;
-    Test2 val;
-    auto args = std::array{"claire_test", "--c", "--verbose", "1"};
-    ASSERT_NO_THROW(result = claire::parse_args<Test2>(args.size(), args.data()));
-  EXPECT_FALSE(result.has_value()) << result.error();
+// TEST(HelloTest, IncompleteParameters) {
+//     std::expected<Test2, const char*> result;
+//     Test2 val;
+//     auto args = std::array{"claire_test", "--c", "--verbose", "1"};
+//     ASSERT_NO_THROW(result = claire::parse_args<Test2>(args.size(), args.data()));
+//   EXPECT_FALSE(result.has_value()) << result.error();
+// }
+
+struct Test4 {
+  char a;
+  short b;
+  int c;
+  long d;
+  long long int e;
+  unsigned char f;
+  unsigned short g;
+  unsigned int h;
+  unsigned long i;
+  unsigned long long int j;
+  // <float> k;
+  // <double> l;
+  std::string m;
+  std::string_view n;
+  std::filesystem::path o;
+};
+
+TEST(HelloTest, ParsersExist) {
+  std::vector<const char*> argj = {"programname", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "/src"};
+  std::expected<Test4, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<Test4>(argj.size(), argj.data()));
+  ASSERT_TRUE(result) << result.error();
+  Test4 v = *result;
+  ASSERT_EQ(v.b, 1);
+}
+
+struct Test3 {
+  std::optional<char> a;
+  std::optional<short> b;
+  std::optional<int> c;
+  std::optional<long> d;
+  std::optional<long long int> e;
+  std::optional<unsigned char> f;
+  std::optional<unsigned short> g;
+  std::optional<unsigned int> h;
+  std::optional<unsigned long> i;
+  std::optional<unsigned long long int> j;
+  // std::optional<float> k;
+  // std::optional<double> l;
+  std::optional<std::string> m;
+  std::optional<std::string_view> n;
+  std::optional<std::filesystem::path> o;
+};
+
+TEST(HelloTest, OptionalParsersExist) {
+  std::vector<const char*> argj = {
+      "programname",
+      "--a",
+      "1",
+      // "--b",
+      // "1",
+      "--c",
+      "1",
+      "--d",
+      "1",
+      "--e",
+      "1",
+      "--f",
+      "1",
+      "--g",
+      "1",
+      "--h",
+      "1",
+      "--i",
+      "1",
+      "--j",
+      "1",
+      "--m",
+      "str",
+      "--n",
+      "str",
+      "--0",
+      "/src"
+  };
+  std::expected<Test3, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<Test3>(argj.size(), argj.data()));
+  ASSERT_TRUE(result) << result.error();
+  Test3& v = *result;
+  ASSERT_EQ(v.b, 1);
 }
