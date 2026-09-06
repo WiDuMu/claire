@@ -114,6 +114,7 @@ struct Test3 {
   std::optional<std::string> m;
   std::optional<std::string_view> n;
   std::optional<std::filesystem::path> o;
+  int num;
 };
 
 TEST(HelloTest, OptionalParsersExist) {
@@ -121,8 +122,8 @@ TEST(HelloTest, OptionalParsersExist) {
       "programname",
       "--a",
       "1",
-      // "--b",
-      // "1",
+      "--b",
+      "1",
       "--c",
       "1",
       "--d",
@@ -143,12 +144,13 @@ TEST(HelloTest, OptionalParsersExist) {
       "str",
       "--n",
       "str",
-      "--0",
-      "/src"
+      "--o",
+      "/src",
+      "0"
   };
   std::expected<Test3, const char*> result;
   ASSERT_NO_THROW(result = claire::parse_args<Test3>(argj.size(), argj.data()));
-  ASSERT_TRUE(result) << result.error();
+  ASSERT_TRUE(result) << result.error()  << '\n' << claire::create_help_string<Test3>();
   Test3& v = *result;
-  ASSERT_EQ(v.b, 1);
+  ASSERT_EQ(v.a, 1);
 }

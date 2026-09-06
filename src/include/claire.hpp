@@ -118,6 +118,11 @@ struct ArgumentDeets {
   ParsePass pass;
 };
 
+enum OptionalStatus {
+    NotMatched,
+    Matched
+};
+
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                           Library statics                                  |
@@ -326,7 +331,7 @@ template <OptionalType T>
 }
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
-[[nodiscard]] constexpr inline std::expected<bool, const char*>
+[[nodiscard]] constexpr inline std::expected<OptionalStatus, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr const char* const err_parsing_msg = std::define_static_string(
       std::string{"Error: failed to parse argument '"} + name + "'\n");
@@ -334,11 +339,11 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
       std::string{"Error: missing value for argument '"} + name + "'\n");
 
   // If we don't match, bail
-  if (strcmp(name, argv[argp] + offset)) { return false; }
+  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
 
   if constexpr (same_type_as<deets.type, bool>()) {
     ret.[:deets.val:] = true;
-    return true;
+    return Matched;
   }
 
   if ((argp + 1) >= argc) { return std::unexpected(err_missing_msg); }
@@ -347,7 +352,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
   if (result) {
     ret.[:deets.val:] = result.value();
-    return true;
+    return Matched;
   }
   return std::unexpected(err_parsing_msg);
 }
@@ -357,8 +362,7 @@ template <typename T>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
-
-  if (!argv) { return std::unexpected("Error: argv is null?"); }
+  bool unknown_arg = true;
 
   for (; argp < argc; argp++) {
     const char* arg = argv[argp];
@@ -376,14 +380,17 @@ parse_optionals(T& ret, int const argc, int& argp,
                 ret, argc, argp, argv);
             if (!result.has_value()) { return std::unexpected(result.error()); }
             if (*result) {
+            unknown_arg = false;
               break;
-            } else {
-              err_return_msg = "Error: Unknown short argument: ";
-              err_return_msg += arg;
-              err_return_msg += '\n';
-              return std::unexpected(err_return_msg.c_str());
             }
           }
+        }
+
+        if (unknown_arg) {
+            err_return_msg = "Error: Unknown short argument: ";
+            err_return_msg += arg;
+            err_return_msg += '\n';
+            return std::unexpected(err_return_msg.c_str());
         }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
@@ -392,15 +399,18 @@ parse_optionals(T& ret, int const argc, int& argp,
               ret, argc, argp, argv);
           if (!result.has_value()) { return std::unexpected(result.error()); }
           if (*result) {
+            unknown_arg = false;
             break;
-          } else {
-            err_return_msg = "Error: Unknown long argument: ";
-            err_return_msg += arg;
-            err_return_msg += '\n';
-
-            return std::unexpected(err_return_msg.c_str());
           }
         }
+
+        if (unknown_arg) {
+            err_return_msg = "Error: Unknown short argument: ";
+            err_return_msg += arg;
+            err_return_msg += '\n';
+            return std::unexpected(err_return_msg.c_str());
+        }
+
       }
     } else {
       return true;
