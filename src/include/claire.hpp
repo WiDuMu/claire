@@ -118,21 +118,17 @@ struct ArgumentDeets {
   ParsePass pass;
 };
 
-enum OptionalStatus {
-    NotMatched,
-    Matched
-};
+enum OptionalStatus { NotMatched, Matched };
 
+// Claire implementation details not for public consumption
+namespace impl {
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                           Library statics                                  |
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-// This is a static variable that stores heap-allocated error strings.
-// #TODO more testing to see if this results in effective use-after-frees due
-// to modifying the string that was returned to the program.
-inline std::string err_return_msg;
+constexpr inline auto context = std::meta::access_context::current();
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -156,6 +152,25 @@ ascii_tolower(const std::string_view v) noexcept {
                  [](const char c) { return ascii_tolower(c); });
   return s;
 }
+
+}; // namespace impl
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                           Library statics                                  |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+// This is a static variable that stores heap-allocated error strings.
+// #TODO more testing to see if this results in effective use-after-frees due
+// to modifying the string that was returned to the program.
+inline std::string err_return_msg;
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                              Helper functions                              |
+|                                                                            |
++---------------------------------------------------------------------------*/
 
 /// Checks if a std::meta::info represents a type that is the same as T
 template <std::meta::info i, typename T>
@@ -187,9 +202,8 @@ template <typename T>
 [[nodiscard]] constexpr auto get_fields() noexcept {
   std::vector<ArgumentDeets> fields{};
 
-  constexpr auto context = std::meta::access_context::current();
   constexpr auto static members = std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, context));
+      std::meta::nonstatic_data_members_of(^^T, impl::context));
 
   template for (constexpr auto member : members) {
     constexpr std::meta::info member_type = std::meta::type_of(member);
@@ -240,13 +254,16 @@ template <typename T, ParsePass pass>
 
 template <typename T>
 [[nodiscard]] consteval inline bool is_optional_type_fn() noexcept {
-    return std::meta::has_template_arguments(^^T) && (std::meta::template_of(^^T) == ^^std::optional);
+  return std::meta::has_template_arguments(^^T) &&
+         (std::meta::template_of(^^T) == ^^std::optional);
 }
 
-static_assert(is_optional_type_fn<std::optional<long long unsigned int>>(), "std::optional<int> should be a specialization of std::optional");
+static_assert(is_optional_type_fn<std::optional<long long unsigned int>>(),
+              "std::optional<int> should be a specialization of std::optional");
 
 template <typename T>
-concept OptionalType = std::meta::has_template_arguments(^^T) && (std::meta::template_of(^^T) == ^^std::optional);
+concept OptionalType = std::meta::has_template_arguments(^^T) &&
+                       (std::meta::template_of(^^T) == ^^std::optional);
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -275,7 +292,7 @@ template <typename T>
   template for (constexpr auto member : enum_members) {
     constexpr auto display_name = std::meta::display_string_of(member);
     constexpr auto cli_name =
-        std::define_static_string(ascii_tolower(display_name));
+        std::define_static_string(impl::ascii_tolower(display_name));
 
     if (strcmp(cli_name, str) == 0) {
       constexpr T val = [:member:];
@@ -313,7 +330,8 @@ template <typename T>
 
 /// Generic form of parse_arg for types that can be constructed from strings
 template <typename T>
-  requires std::constructible_from<T, const char*> && (!std::same_as<T, bool>) && (!is_optional_type_fn<T>())
+  requires std::constructible_from<T, const char*> &&
+           (!std::same_as<T, bool>) && (!is_optional_type_fn<T>())
 [[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   try {
@@ -380,17 +398,17 @@ parse_optionals(T& ret, int const argc, int& argp,
                 ret, argc, argp, argv);
             if (!result.has_value()) { return std::unexpected(result.error()); }
             if (*result == Matched) {
-            unknown_arg = false;
+              unknown_arg = false;
               break;
             }
           }
         }
 
         if (unknown_arg) {
-            err_return_msg = "Error: Unknown short argument: ";
-            err_return_msg += arg;
-            err_return_msg += '\n';
-            return std::unexpected(err_return_msg.c_str());
+          err_return_msg = "Error: Unknown short argument: ";
+          err_return_msg += arg;
+          err_return_msg += '\n';
+          return std::unexpected(err_return_msg.c_str());
         }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
@@ -405,12 +423,11 @@ parse_optionals(T& ret, int const argc, int& argp,
         }
 
         if (unknown_arg) {
-            err_return_msg = "Error: Unknown short argument: ";
-            err_return_msg += arg;
-            err_return_msg += '\n';
-            return std::unexpected(err_return_msg.c_str());
+          err_return_msg = "Error: Unknown short argument: ";
+          err_return_msg += arg;
+          err_return_msg += '\n';
+          return std::unexpected(err_return_msg.c_str());
         }
-
       }
     } else {
       return true;
