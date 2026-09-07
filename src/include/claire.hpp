@@ -421,6 +421,28 @@ parse_optionals(T& ret, int const argc, int& argp,
   return false;
 }
 
+template <typename T, ArgumentDeets deets>
+[[nodiscard]] constexpr inline expected<void, const char*>
+parse_positional(T& ret, int const argc, int& argp,
+                 const char**& argv) noexcept {
+  constexpr constr err_parsing_string = define_static_string(
+      string{"Error: Failed parsing argument "} + deets.long_name + '\n');
+  constexpr constr err_not_exists_string = define_static_string(
+      string{"Error: Missing value for argument "} + deets.long_name + '\n');
+
+  if (argp >= argc) { return unexpected(err_not_exists_string); }
+
+  auto val = parse_arg<typename[:deets.type:]>(argv[argp]);
+
+  if (val.has_value()) {
+    argp++;
+    ret.[:deets.val:] = *val;
+    return {};
+  }
+
+  return unexpected(err_parsing_string);
+}
+
 }; // namespace impl
 
 /*---------------------------------------------------------------------------+
@@ -429,13 +451,14 @@ parse_optionals(T& ret, int const argc, int& argp,
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-using impl::not_emptystring;
-using impl::is_optional;
 using impl::get_fields;
 using impl::get_pass_fields;
+using impl::is_optional;
+using impl::not_emptystring;
 using impl::parse_arg;
 using impl::parse_optional;
 using impl::parse_optionals;
+using impl::parse_positional;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -537,31 +560,16 @@ parse_args(int argc, const char** argv) {
   // process the positional, and continue. #TODO: currently a flag doesn't
   // process correctly
   template for (constexpr auto field : positionals) {
-    constexpr const char* const err_parsing_string = std::define_static_string(
-        std::string{"Error: Failed parsing argument "} + field.long_name +
-        '\n');
-    constexpr const char* const err_not_exists_string =
-        std::define_static_string(
-            std::string{"Error: Missing value for argument "} +
-            field.long_name + '\n');
-
     auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
 
     if (!optional_result.has_value()) {
       return std::unexpected(optional_result.error());
     }
 
-    if (argp < argc) { // Positional argument exists
-      std::optional<typename[:field.type:]> val =
-          parse_arg<typename[:field.type:]>(argv[argp]);
-      if (val.has_value()) {
-        argp++;
-        ret.[:field.val:] = *val;
-      } else {
-        return std::unexpected(err_parsing_string);
-      }
-    } else {
-      return std::unexpected(err_not_exists_string);
+    auto positional_result = parse_positional<T, field>(ret, argc, argp, argv);
+
+    if (!positional_result.has_value()) {
+      return std::unexpected(positional_result.error());
     }
   }
 
