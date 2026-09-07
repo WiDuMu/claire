@@ -264,13 +264,6 @@ template <typename T>
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-/// Checks if a std::meta::info represents a type that is the same as T
-template <std::meta::info i, typename T>
-[[nodiscard]] consteval bool same_type_as() noexcept {
-  if (!std::meta::is_type(i)) { return std::meta::type_of(i) == ^^T; }
-  return i == ^^T;
-}
-
 /// Checks if a C string is not empty
 [[nodiscard]] constexpr inline bool not_emptystring(const char* s) noexcept {
   return s && s[0] != '\0';
@@ -351,7 +344,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   // If we don't match, bail
   if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
 
-  if constexpr (same_type_as<deets.type, bool>()) {
+  if constexpr (deets.type == ^^bool) {
     ret.[:deets.val:] = true;
     return Matched;
   }
