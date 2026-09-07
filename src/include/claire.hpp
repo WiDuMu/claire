@@ -339,7 +339,7 @@ template <typename T>
   } catch (...) { return std::nullopt; }
 }
 
-// For an optional containing an enum
+// For an optional type
 template <OptionalType T>
 [[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   using R = T::value_type;
