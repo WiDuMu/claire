@@ -433,7 +433,7 @@ parse_positional(T& ret, int const argc, int& argp,
   auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
 
   if (!optional_result.has_value()) {
-    return std::unexpected(optional_result.error());
+    return unexpected(optional_result.error());
   }
 
   if (argp >= argc) { return unexpected(err_not_exists_string); }
@@ -459,7 +459,7 @@ parse_optional_positional(T& ret, int const argc, int& argp,
   auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
 
   if (!optional_result.has_value()) {
-    return std::unexpected(optional_result.error());
+    return unexpected(optional_result.error());
   }
 
   if (argp >= argc) { return true; }
@@ -500,9 +500,8 @@ using impl::parse_optional_positional;
 template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] consteval const char* create_help_string() {
-  std::string s;
-
   constexpr auto program_desc = Description::extract<^^T>();
+  std::string s;
 
   if (not_emptystring(program_desc)) {
     s += program_desc;
