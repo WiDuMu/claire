@@ -276,41 +276,6 @@ using std::string;
 using std::unexpected;
 using constr = const char* const;
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
-[[nodiscard]] constexpr inline expected<OptionalStatus, const char*>
-parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
-  constexpr constr err_parsing_msg = define_static_string(
-      string{"Error: failed to parse argument '"} + name + "'\n");
-  constexpr constr err_missing_msg = define_static_string(
-      string{"Error: missing value for argument '"} + name + "'\n");
-
-  // If we don't match, bail
-  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
-
-  if constexpr (deets.type == ^^bool) {
-    ret.[:deets.val:] = true;
-    return Matched;
-  }
-
-  if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
-
-  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
-  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
-  if (result) {
-    ret.[:deets.val:] = result.value();
-    return Matched;
-  }
-  return unexpected(err_parsing_msg);
-}
-
-}; // namespace impl
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                              Helper functions                              |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
 /// Checks if a C string is not empty
 [[nodiscard]] constexpr inline bool not_emptystring(const char* s) noexcept {
   return s && s[0] != '\0';
@@ -378,9 +343,32 @@ template <typename T, ParsePass pass>
   return std::define_static_array(val);
 }
 
-using impl::parse_arg;
+template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+[[nodiscard]] constexpr inline expected<OptionalStatus, const char*>
+parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
+  constexpr constr err_parsing_msg = define_static_string(
+      string{"Error: failed to parse argument '"} + name + "'\n");
+  constexpr constr err_missing_msg = define_static_string(
+      string{"Error: missing value for argument '"} + name + "'\n");
 
-using impl::parse_optional;
+  // If we don't match, bail
+  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
+
+  if constexpr (deets.type == ^^bool) {
+    ret.[:deets.val:] = true;
+    return Matched;
+  }
+
+  if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
+
+  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
+  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+  if (result) {
+    ret.[:deets.val:] = result.value();
+    return Matched;
+  }
+  return unexpected(err_parsing_msg);
+}
 
 template <typename T>
 [[nodiscard]] constexpr inline std::expected<bool, const char*>
@@ -411,7 +399,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) { return impl::unknown_argument<bool>(arg); }
+        if (unknown_arg) { return unknown_argument<bool>(arg); }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
@@ -424,7 +412,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) { return impl::unknown_argument<bool>(arg); }
+        if (unknown_arg) { return unknown_argument<bool>(arg); }
       }
     } else {
       return true;
@@ -432,6 +420,22 @@ parse_optionals(T& ret, int const argc, int& argp,
   }
   return false;
 }
+
+}; // namespace impl
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                              Helper functions                              |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+using impl::not_emptystring;
+using impl::is_optional;
+using impl::get_fields;
+using impl::get_pass_fields;
+using impl::parse_arg;
+using impl::parse_optional;
+using impl::parse_optionals;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
