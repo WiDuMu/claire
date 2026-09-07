@@ -430,6 +430,12 @@ parse_positional(T& ret, int const argc, int& argp,
   constexpr constr err_not_exists_string = define_static_string(
       string{"Error: Missing value for argument "} + deets.long_name + '\n');
 
+  auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
+
+  if (!optional_result.has_value()) {
+    return std::unexpected(optional_result.error());
+  }
+
   if (argp >= argc) { return unexpected(err_not_exists_string); }
 
   auto val = parse_arg<typename[:deets.type:]>(argv[argp]);
@@ -443,6 +449,32 @@ parse_positional(T& ret, int const argc, int& argp,
   return unexpected(err_parsing_string);
 }
 
+template <typename T, ArgumentDeets deets>
+[[nodiscard]] constexpr inline expected<bool, const char*>
+parse_optional_positional(T& ret, int const argc, int& argp,
+                          const char**& argv) noexcept {
+  constexpr constr err_parsing_string = define_static_string(
+      string{"Error: Failed parsing argument "} + deets.long_name + '\n');
+
+  auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
+
+  if (!optional_result.has_value()) {
+    return std::unexpected(optional_result.error());
+  }
+
+  if (argp >= argc) { return true; }
+
+  auto val = parse_arg<typename[:deets.type:]>(argv[argp]);
+
+  if (val.has_value()) {
+    argp++;
+    ret.[:deets.val:] = *val;
+    return false;
+  }
+
+  return unexpected(err_parsing_string);
+}
+
 }; // namespace impl
 
 /*---------------------------------------------------------------------------+
@@ -451,14 +483,12 @@ parse_positional(T& ret, int const argc, int& argp,
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-using impl::get_fields;
 using impl::get_pass_fields;
-using impl::is_optional;
 using impl::not_emptystring;
 using impl::parse_arg;
-using impl::parse_optional;
 using impl::parse_optionals;
 using impl::parse_positional;
+using impl::parse_optional_positional;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -560,12 +590,6 @@ parse_args(int argc, const char** argv) {
   // process the positional, and continue. #TODO: currently a flag doesn't
   // process correctly
   template for (constexpr auto field : positionals) {
-    auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
-
-    if (!optional_result.has_value()) {
-      return std::unexpected(optional_result.error());
-    }
-
     auto positional_result = parse_positional<T, field>(ret, argc, argp, argv);
 
     if (!positional_result.has_value()) {
@@ -574,27 +598,14 @@ parse_args(int argc, const char** argv) {
   }
 
   template for (constexpr auto opt_pos : optional_positionals) {
-    constexpr const char* const err_parsing_string = std::define_static_string(
-        std::string{"Error: Failed parsing argument "} + opt_pos.long_name +
-        '\n');
+    auto optional_positional_result = parse_optional_positional<T, opt_pos>(ret, argc, argp, argv);
 
-    auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
-
-    if (!optional_result.has_value()) {
-      return std::unexpected(optional_result.error());
+    if (!optional_positional_result.has_value()) {
+        return std::unexpected(optional_positional_result.error());
     }
 
-    if (argp < argc) { // Positional argument exists
-      std::optional<typename[:opt_pos.type:]> val =
-          parse_arg<typename[:opt_pos.type:]>(argv[argp]);
-      if (val.has_value()) {
-        argp++;
-        ret.[:opt_pos.val:] = *val;
-      } else {
-        return std::unexpected(err_parsing_string);
-      }
-    } else {
-      break;
+    if (optional_positional_result.value()) {
+        break;
     }
   }
 

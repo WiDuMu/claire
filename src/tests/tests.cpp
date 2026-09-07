@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <filesystem>
+#include <optional>
 #include "claire.hpp"
 
 TEST(HelloTest, FloatParsing) {
@@ -153,4 +154,33 @@ TEST(HelloTest, OptionalParsersExist) {
   ASSERT_TRUE(result) << result.error()  << '\n' << claire::create_help_string<Test3>();
   Test3& v = *result;
   ASSERT_EQ(v.a, 1);
+}
+
+struct Test5 {
+  [[= claire::Positional{} ]]
+  std::optional<int> a;
+};
+
+TEST(HelloTest, OptionalPositionalsParse) {
+  std::vector<const char*> argj = {
+      "programname",
+      "0"
+  };
+  std::expected<Test5, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<Test5>(argj.size(), argj.data()));
+  ASSERT_TRUE(result) << result.error()  << '\n' << claire::create_help_string<Test5>();
+  Test5& v = *result;
+  ASSERT_TRUE(v.a.has_value());
+  ASSERT_EQ(*v.a, 0);
+}
+
+TEST(HelloTest, OptionalPositionalsDontError) {
+  std::vector<const char*> argj = {
+      "programname",
+  };
+  std::expected<Test5, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<Test5>(argj.size(), argj.data()));
+  ASSERT_TRUE(result) << result.error()  << '\n' << claire::create_help_string<Test5>();
+  Test5& v = *result;
+  ASSERT_FALSE(v.a.has_value());
 }
