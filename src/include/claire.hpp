@@ -108,20 +108,38 @@ struct Shortname {
 /// Which pass this argument needs to be processed on
 enum ParsePass { Position, Option, OptionalPosition, OptionalBypass };
 
-/// Internal structure used to store details of each argument provided
-struct ArgumentDeets {
-  const char* long_name;
-  const char* short_name;
-  const char* description;
-  std::meta::info type;
-  std::meta::info val;
-  ParsePass pass;
-};
+
 
 enum OptionalStatus { NotMatched, Matched };
 
 // Claire implementation details not for public consumption
 namespace impl {
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                                   Types                                    |
+|                                                                            |
++---------------------------------------------------------------------------*/
+using std::define_static_string;
+using std::expected;
+using std::string;
+using std::unexpected;
+using std::meta::identifier_of;
+using std::meta::info;
+using std::meta::nonstatic_data_members_of;
+using std::meta::type_of;
+using constr = const char* const;
+
+/// Internal structure used to store details of each argument provided
+struct ArgumentDeets {
+  const char* long_name;
+  const char* short_name;
+  const char* description;
+  info type;
+  info val;
+  ParsePass pass;
+};
+
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                           Library statics                                  |
@@ -270,12 +288,6 @@ template <typename T>
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
-using std::define_static_string;
-using std::expected;
-using std::string;
-using std::unexpected;
-using constr = const char* const;
-
 /// Checks if a C string is not empty
 [[nodiscard]] constexpr inline bool not_emptystring(const char* s) noexcept {
   return s && s[0] != '\0';
@@ -299,13 +311,12 @@ template <typename T>
 [[nodiscard]] constexpr auto get_fields() noexcept {
   std::vector<ArgumentDeets> fields{};
 
-  constexpr auto static members = std::define_static_array(
-      std::meta::nonstatic_data_members_of(^^T, impl::context));
+  constexpr auto static members =
+      define_static_array(nonstatic_data_members_of(^^T, context));
 
   template for (constexpr auto member : members) {
-    constexpr std::meta::info member_type = std::meta::type_of(member);
-    const char* member_name =
-        std::define_static_string(std::meta::identifier_of(member));
+    constexpr info member_type = type_of(member);
+    const char* member_name = define_static_string(identifier_of(member));
     const char* member_desc = Description::extract<member>();
     const char* member_short_name = Shortname::extract<member>();
     bool opt = is_optional<member_type>();
@@ -340,10 +351,10 @@ template <typename T, ParsePass pass>
     if (field.pass == pass) { val.push_back(field); }
   }
 
-  return std::define_static_array(val);
+  return define_static_array(val);
 }
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+template <typename T, ArgumentDeets deets, size_t offset, const char* name>
 [[nodiscard]] constexpr inline expected<OptionalStatus, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr constr err_parsing_msg = define_static_string(
@@ -371,7 +382,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
 }
 
 template <typename T>
-[[nodiscard]] constexpr inline std::expected<bool, const char*>
+[[nodiscard]] constexpr inline expected<bool, const char*>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
@@ -391,7 +402,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           if constexpr (not_emptystring(option.short_name)) {
             auto result = parse_optional<T, option, 1, option.short_name>(
                 ret, argc, argp, argv);
-            if (!result.has_value()) { return std::unexpected(result.error()); }
+            if (!result.has_value()) { return unexpected(result.error()); }
             if (*result == Matched) {
               unknown_arg = false;
               break;
@@ -405,7 +416,7 @@ parse_optionals(T& ret, int const argc, int& argp,
         template for (constexpr auto option : optionals) {
           auto result = parse_optional<T, option, 2, option.long_name>(
               ret, argc, argp, argv);
-          if (!result.has_value()) { return std::unexpected(result.error()); }
+          if (!result.has_value()) { return unexpected(result.error()); }
           if (*result == Matched) {
             unknown_arg = false;
             break;
@@ -486,9 +497,9 @@ parse_optional_positional(T& ret, int const argc, int& argp,
 using impl::get_pass_fields;
 using impl::not_emptystring;
 using impl::parse_arg;
+using impl::parse_optional_positional;
 using impl::parse_optionals;
 using impl::parse_positional;
-using impl::parse_optional_positional;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -597,15 +608,14 @@ parse_args(int argc, const char** argv) {
   }
 
   template for (constexpr auto opt_pos : optional_positionals) {
-    auto optional_positional_result = parse_optional_positional<T, opt_pos>(ret, argc, argp, argv);
+    auto optional_positional_result =
+        parse_optional_positional<T, opt_pos>(ret, argc, argp, argv);
 
     if (!optional_positional_result.has_value()) {
-        return std::unexpected(optional_positional_result.error());
+      return std::unexpected(optional_positional_result.error());
     }
 
-    if (optional_positional_result.value()) {
-        break;
-    }
+    if (optional_positional_result.value()) { break; }
   }
 
   if (argp < argc) { // More optionals exist
