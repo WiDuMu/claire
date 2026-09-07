@@ -108,18 +108,8 @@ struct Shortname {
 /// Which pass this argument needs to be processed on
 enum ParsePass { Position, Option, OptionalPosition, OptionalBypass };
 
-
-
-enum OptionalStatus { NotMatched, Matched };
-
 // Claire implementation details not for public consumption
 namespace impl {
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                                   Types                                    |
-|                                                                            |
-+---------------------------------------------------------------------------*/
 using std::define_static_string;
 using std::expected;
 using std::string;
@@ -130,6 +120,12 @@ using std::meta::nonstatic_data_members_of;
 using std::meta::type_of;
 using constr = const char* const;
 
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                                   Types                                    |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
 /// Internal structure used to store details of each argument provided
 struct ArgumentDeets {
   const char* long_name;
@@ -139,6 +135,11 @@ struct ArgumentDeets {
   info val;
   ParsePass pass;
 };
+
+/// Intenal enum used to check if a optional parser matched
+/// This could be a bool but I found the semantics diffucult when used with a
+/// std::optional
+enum MatchStatus { NotMatched, Matched };
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -355,7 +356,7 @@ template <typename T, ParsePass pass>
 }
 
 template <typename T, ArgumentDeets deets, size_t offset, const char* name>
-[[nodiscard]] constexpr inline expected<OptionalStatus, const char*>
+[[nodiscard]] constexpr inline expected<MatchStatus, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr constr err_parsing_msg = define_static_string(
       string{"Error: failed to parse argument '"} + name + "'\n");
