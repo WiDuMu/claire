@@ -130,6 +130,11 @@ namespace impl {
 
 constexpr inline auto context = std::meta::access_context::current();
 
+// This is a static variable that stores heap-allocated error strings.
+// #TODO more testing to see if this results in effective use-after-frees due
+// to modifying the string that was returned to the program.
+inline std::string err_return_msg;
+
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                              Helper functions                              |
@@ -153,18 +158,15 @@ ascii_tolower(const std::string_view v) noexcept {
   return s;
 }
 
+template<typename T>
+[[nodiscard]] constexpr inline std::expected<T, const char*> unknown_argument(const char* arg) {
+    err_return_msg = "Error: Unknown argument: ";
+    err_return_msg += arg;
+    err_return_msg += '\n';
+    return std::unexpected(err_return_msg.c_str());
+}
+
 }; // namespace impl
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                           Library statics                                  |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-// This is a static variable that stores heap-allocated error strings.
-// #TODO more testing to see if this results in effective use-after-frees due
-// to modifying the string that was returned to the program.
-inline std::string err_return_msg;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -405,10 +407,7 @@ parse_optionals(T& ret, int const argc, int& argp,
         }
 
         if (unknown_arg) {
-          err_return_msg = "Error: Unknown short argument: ";
-          err_return_msg += arg;
-          err_return_msg += '\n';
-          return std::unexpected(err_return_msg.c_str());
+            return impl::unknown_argument<bool>(arg);
         }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
@@ -423,10 +422,7 @@ parse_optionals(T& ret, int const argc, int& argp,
         }
 
         if (unknown_arg) {
-          err_return_msg = "Error: Unknown short argument: ";
-          err_return_msg += arg;
-          err_return_msg += '\n';
-          return std::unexpected(err_return_msg.c_str());
+          return impl::unknown_argument<bool>(arg);
         }
       }
     } else {
@@ -597,10 +593,7 @@ parse_args(int argc, const char** argv) {
   }
 
   if (argp < argc) { // We encountered an unexpected positional argument
-    err_return_msg = "Error: Unknown argument: ";
-    err_return_msg += argv[argp];
-    err_return_msg += '\n';
-    return std::unexpected(err_return_msg.c_str());
+    return impl::unknown_argument<T>(argv[argp]);
   }
 
   return ret;
