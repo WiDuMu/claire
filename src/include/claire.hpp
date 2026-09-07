@@ -166,6 +166,96 @@ template<typename T>
     return std::unexpected(err_return_msg.c_str());
 }
 
+/// If a argument is a boolean type, if it exists at all it is true
+template <typename T>
+  requires std::same_as<T, bool>
+[[nodiscard]] constexpr inline std::optional<bool>
+parse_arg([[maybe_unused]] const char* str) noexcept {
+  return true;
+}
+
+/// Specialization of generic function parse_arg for enum types
+template <typename T>
+  requires std::is_enum_v<T>
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  static_assert(std::meta::is_enumerable_type(^^T), "Requires an enum");
+  constexpr static auto enum_members =
+      std::define_static_array(std::meta::enumerators_of(^^T));
+
+  if (!str) { return std::nullopt; }
+
+  template for (constexpr auto member : enum_members) {
+    constexpr auto display_name = std::meta::display_string_of(member);
+    constexpr auto cli_name =
+        std::define_static_string(impl::ascii_tolower(display_name));
+
+    if (strcmp(cli_name, str) == 0) {
+      constexpr T val = [:member:];
+      return val;
+    }
+  }
+  return std::nullopt;
+}
+
+/// Specialization of generic function parse_arg for numeric types
+template <typename T>
+  requires(std::integral<T>) && (!std::same_as<T, bool>)
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  if (!str) { return std::nullopt; }
+  size_t len = std::strlen(str);
+  T val;
+  auto result = std::from_chars(str, str + len, val);
+  if (result) { return val; }
+  return std::nullopt;
+}
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Type Concepts                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+template <typename T>
+[[nodiscard]] consteval inline bool is_optional_type() noexcept {
+  return std::meta::has_template_arguments(^^T) &&
+         (std::meta::template_of(^^T) == ^^std::optional);
+}
+
+/// Specialization of generic function parse_arg for floating point types
+/// not constexpr compatible because from_chars is not constexpr compatible for
+/// floating point types
+template <typename T>
+  requires(std::floating_point<T>) && (!std::same_as<T, bool>)
+[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
+  if (!str) { return std::nullopt; }
+  size_t len = std::strlen(str);
+  T val;
+  auto result = std::from_chars(str, str + len, val);
+  if (result) { return val; }
+  return std::nullopt;
+}
+
+/// Generic form of parse_arg for types that can be constructed from strings
+template <typename T>
+  requires std::constructible_from<T, const char*> &&
+           (!std::same_as<T, bool>) && (!is_optional_type<T>())
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  if (!str) { return std::nullopt; }
+  try {
+    return T{str};
+  } catch (...) { return std::nullopt; }
+}
+
+// For an optional type
+template <typename T>
+    requires (is_optional_type<T>())
+[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
+  using R = T::value_type;
+  auto val = parse_arg<R>(str);
+  if (val.has_value()) { return val.value(); }
+  return std::nullopt;
+}
+
 }; // namespace impl
 
 /*---------------------------------------------------------------------------+
@@ -248,107 +338,7 @@ template <typename T, ParsePass pass>
   return std::define_static_array(val);
 }
 
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Type Concepts                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-template <typename T>
-[[nodiscard]] consteval inline bool is_optional_type_fn() noexcept {
-  return std::meta::has_template_arguments(^^T) &&
-         (std::meta::template_of(^^T) == ^^std::optional);
-}
-
-static_assert(is_optional_type_fn<std::optional<long long unsigned int>>(),
-              "std::optional<int> should be a specialization of std::optional");
-
-template <typename T>
-concept OptionalType = std::meta::has_template_arguments(^^T) &&
-                       (std::meta::template_of(^^T) == ^^std::optional);
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Value parsers                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-/// If a argument is a boolean type, if it exists at all it is true
-template <typename T>
-  requires std::same_as<T, bool>
-[[nodiscard]] constexpr inline std::optional<bool>
-parse_arg([[maybe_unused]] const char* str) noexcept {
-  return true;
-}
-
-/// Specialization of generic function parse_arg for enum types
-template <typename T>
-  requires std::is_enum_v<T>
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  static_assert(std::meta::is_enumerable_type(^^T), "Requires an enum");
-  constexpr static auto enum_members =
-      std::define_static_array(std::meta::enumerators_of(^^T));
-
-  if (!str) { return std::nullopt; }
-
-  template for (constexpr auto member : enum_members) {
-    constexpr auto display_name = std::meta::display_string_of(member);
-    constexpr auto cli_name =
-        std::define_static_string(impl::ascii_tolower(display_name));
-
-    if (strcmp(cli_name, str) == 0) {
-      constexpr T val = [:member:];
-      return val;
-    }
-  }
-  return std::nullopt;
-}
-
-/// Specialization of generic function parse_arg for numeric types
-template <typename T>
-  requires(std::integral<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  if (!str) { return std::nullopt; }
-  size_t len = std::strlen(str);
-  T val;
-  auto result = std::from_chars(str, str + len, val);
-  if (result) { return val; }
-  return std::nullopt;
-}
-
-/// Specialization of generic function parse_arg for floating point types
-/// not constexpr compatible because from_chars is not constexpr compatible for
-/// floating point types
-template <typename T>
-  requires(std::floating_point<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
-  if (!str) { return std::nullopt; }
-  size_t len = std::strlen(str);
-  T val;
-  auto result = std::from_chars(str, str + len, val);
-  if (result) { return val; }
-  return std::nullopt;
-}
-
-/// Generic form of parse_arg for types that can be constructed from strings
-template <typename T>
-  requires std::constructible_from<T, const char*> &&
-           (!std::same_as<T, bool>) && (!is_optional_type_fn<T>())
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  if (!str) { return std::nullopt; }
-  try {
-    return T{str};
-  } catch (...) { return std::nullopt; }
-}
-
-// For an optional type
-template <OptionalType T>
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  using R = T::value_type;
-  auto val = parse_arg<R>(str);
-  if (val.has_value()) { return val.value(); }
-  return std::nullopt;
-}
+using impl::parse_arg;
 
 template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
 [[nodiscard]] constexpr inline std::expected<OptionalStatus, const char*>
