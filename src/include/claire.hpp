@@ -128,6 +128,7 @@ namespace impl {
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+// Access context used by reflection functions
 constexpr inline auto context = std::meta::access_context::current();
 
 // This is a static variable that stores heap-allocated error strings.
@@ -158,12 +159,13 @@ ascii_tolower(const std::string_view v) noexcept {
   return s;
 }
 
-template<typename T>
-[[nodiscard]] constexpr inline std::expected<T, const char*> unknown_argument(const char* arg) {
-    err_return_msg = "Error: Unknown argument: ";
-    err_return_msg += arg;
-    err_return_msg += '\n';
-    return std::unexpected(err_return_msg.c_str());
+template <typename T>
+[[nodiscard]] constexpr inline std::expected<T, const char*>
+unknown_argument(const char* arg) {
+  err_return_msg = "Error: Unknown argument: ";
+  err_return_msg += arg;
+  err_return_msg += '\n';
+  return std::unexpected(err_return_msg.c_str());
 }
 
 /// If a argument is a boolean type, if it exists at all it is true
@@ -221,6 +223,12 @@ template <typename T>
          (std::meta::template_of(^^T) == ^^std::optional);
 }
 
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Value parsers                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
 /// Specialization of generic function parse_arg for floating point types
 /// not constexpr compatible because from_chars is not constexpr compatible for
 /// floating point types
@@ -248,12 +256,51 @@ template <typename T>
 
 // For an optional type
 template <typename T>
-    requires (is_optional_type<T>())
+  requires(is_optional_type<T>())
 [[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
   using R = T::value_type;
   auto val = parse_arg<R>(str);
   if (val.has_value()) { return val.value(); }
   return std::nullopt;
+}
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                             parse_args helpers                             |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+using std::define_static_string;
+using std::expected;
+using std::string;
+using std::unexpected;
+using constr = const char* const;
+
+template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
+[[nodiscard]] constexpr inline expected<OptionalStatus, const char*>
+parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
+  constexpr constr err_parsing_msg = define_static_string(
+      string{"Error: failed to parse argument '"} + name + "'\n");
+  constexpr constr err_missing_msg = define_static_string(
+      string{"Error: missing value for argument '"} + name + "'\n");
+
+  // If we don't match, bail
+  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
+
+  if constexpr (deets.type == ^^bool) {
+    ret.[:deets.val:] = true;
+    return Matched;
+  }
+
+  if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
+
+  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
+  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+  if (result) {
+    ret.[:deets.val:] = result.value();
+    return Matched;
+  }
+  return unexpected(err_parsing_msg);
 }
 
 }; // namespace impl
@@ -333,32 +380,7 @@ template <typename T, ParsePass pass>
 
 using impl::parse_arg;
 
-template <typename T, ArgumentDeets deets, std::size_t offset, const char* name>
-[[nodiscard]] constexpr inline std::expected<OptionalStatus, const char*>
-parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
-  constexpr const char* const err_parsing_msg = std::define_static_string(
-      std::string{"Error: failed to parse argument '"} + name + "'\n");
-  constexpr const char* const err_missing_msg = std::define_static_string(
-      std::string{"Error: missing value for argument '"} + name + "'\n");
-
-  // If we don't match, bail
-  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
-
-  if constexpr (deets.type == ^^bool) {
-    ret.[:deets.val:] = true;
-    return Matched;
-  }
-
-  if ((argp + 1) >= argc) { return std::unexpected(err_missing_msg); }
-
-  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
-  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
-  if (result) {
-    ret.[:deets.val:] = result.value();
-    return Matched;
-  }
-  return std::unexpected(err_parsing_msg);
-}
+using impl::parse_optional;
 
 template <typename T>
 [[nodiscard]] constexpr inline std::expected<bool, const char*>
@@ -389,9 +411,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) {
-            return impl::unknown_argument<bool>(arg);
-        }
+        if (unknown_arg) { return impl::unknown_argument<bool>(arg); }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
@@ -404,9 +424,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) {
-          return impl::unknown_argument<bool>(arg);
-        }
+        if (unknown_arg) { return impl::unknown_argument<bool>(arg); }
       }
     } else {
       return true;
