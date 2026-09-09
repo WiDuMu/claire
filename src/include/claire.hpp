@@ -153,7 +153,7 @@ constexpr inline auto context = std::meta::access_context::current();
 // This is a static variable that stores heap-allocated error strings.
 // #TODO more testing to see if this results in effective use-after-frees due
 // to modifying the string that was returned to the program.
-inline std::string err_return_msg;
+thread_local inline std::string err_return_msg;
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -356,7 +356,7 @@ template <typename T, ParsePass pass>
 }
 
 template <typename T, ArgumentDeets deets, size_t offset, const char* name>
-[[nodiscard]] constexpr inline expected<MatchStatus, const char*>
+[[nodiscard]] constexpr inline expected<bool, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr constr err_parsing_msg = define_static_string(
       string{"Error: failed to parse argument '"} + name + "'\n");
@@ -383,7 +383,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
 }
 
 template <typename T>
-[[nodiscard]] constexpr inline expected<bool, const char*>
+[[nodiscard]] constexpr inline expected<MatchStatus, const char*>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
