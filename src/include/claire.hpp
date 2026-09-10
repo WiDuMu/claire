@@ -5,10 +5,6 @@
 |                                                                              |
 +-----------------------------------------------------------------------------*/
 
-// This library implements a command line arguments parser similar to `clap`'s
-// derive functionality. takes in a struct type and reads generates a parser for
-// it.
-
 #ifndef CLAIRE_HPP
 #define CLAIRE_HPP
 
@@ -81,29 +77,6 @@ struct Shortname {
 /// Which pass this argument needs to be processed on
 enum ParsePass { Position, Option, OptionalPosition, OptionalBypass };
 
-/// Reasons that a claire call can fail.
-enum ErrorReason {
-    ErrorParsing,
-    ErrorBadAlloc,
-    ErrorUnknownParameter,
-};
-
-struct ClaireError {
-    ErrorReason reason;
-    const char* parameter = nullptr;
-    const char* value = nullptr;
-    operator std::string const() noexcept {
-        switch (reason) {
-            case ErrorParsing:
-                return std::string("Failed parsing parameter '") + parameter + "'. Value '" + value + " invalid.";
-            case ErrorBadAlloc:
-                return std::define_static_string("Failed allocation in argument parsing.\n");
-            case ErrorUnknownParameter:
-                return std::string("Unknown parameter: '") + parameter + "'.";
-        }
-    }
-};
-
 // Claire implementation details not for public consumption
 namespace impl {
 using std::define_static_string;
@@ -137,8 +110,7 @@ struct ArgumentDeets {
 /// std::optional
 enum MatchStatus { NotMatched, Matched };
 
-/// Internal enum used to specify if parse_optionals found a positional argument
-/// or ran out first.
+/// Internal enum used to specify if parse_optionals found a positional argument or ran out first.
 enum PositionalStatus { NotFound, Found };
 
 /*---------------------------------------------------------------------------+
@@ -217,24 +189,6 @@ parse_arg([[maybe_unused]] const char* str) noexcept {
   return true;
 }
 
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Type Concepts                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-template <typename T>
-[[nodiscard]] consteval inline bool is_optional_type() noexcept {
-  return std::meta::has_template_arguments(^^T) &&
-         (std::meta::template_of(^^T) == ^^std::optional);
-}
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Value parsers                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
 /// Specialization of generic function parse_arg for enum types
 template <typename T>
   requires std::is_enum_v<T>
@@ -269,6 +223,24 @@ template <typename T>
   if (result) { return val; }
   return std::nullopt;
 }
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Type Concepts                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+template <typename T>
+[[nodiscard]] consteval inline bool is_optional_type() noexcept {
+  return std::meta::has_template_arguments(^^T) &&
+         (std::meta::template_of(^^T) == ^^std::optional);
+}
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Value parsers                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
 
 /// Specialization of generic function parse_arg for floating point types
 /// not constexpr compatible because from_chars is not constexpr compatible for
@@ -341,8 +313,7 @@ template <typename T>
     constexpr info member_type = type_of(member);
     const char* member_name = define_static_string(identifier_of(member));
     const char* member_desc = extract_text_annotation<member, Description>();
-    const char* member_short_name =
-        extract_text_annotation<member, Shortname>();
+    const char* member_short_name = extract_text_annotation<member, Shortname>();
     bool opt = is_optional<member_type>();
     ParsePass pass = opt ? Option : Position;
     if (opt) {
@@ -522,8 +493,7 @@ parse_optional_positional(T& ret, int const argc, int& argp,
 template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] consteval const char* create_help_string() {
-  constexpr auto program_desc =
-      impl::extract_text_annotation<^^T, Description>();
+  constexpr auto program_desc = impl::extract_text_annotation<^^T, Description>();
   std::string s;
 
   if (impl::not_emptystring(program_desc)) {
@@ -611,8 +581,7 @@ parse_args(int argc, const char** argv) {
   // i.e. `--verbose`, or a optional i.e. `--logging-level verbose`, break,
   // process the positional, and continue.
   template for (constexpr auto field : positionals) {
-    auto positional_result =
-        impl::parse_positional<T, field>(ret, argc, argp, argv);
+    auto positional_result = impl::parse_positional<T, field>(ret, argc, argp, argv);
 
     if (!positional_result.has_value()) {
       return std::unexpected(positional_result.error());
