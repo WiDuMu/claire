@@ -2,7 +2,7 @@
 |                                                                              |
 |       Claire: Command Line Arguments Interpretation Reflection Engine        |
 |                             (C) WiDuMu 2026                                  |
-|                                     0.2                                      |
+|                                  0.2.1                                       |
 |                                                                              |
 +-----------------------------------------------------------------------------*/
 
@@ -76,6 +76,7 @@
 // - [ ] Bad Allocation exception errors
 // - [ ] Better Error Handling (struct type that doesn't alloc unless asked for)
 // - [ ] Vector/Array types, which allow/require a given number of paramters
+// - [ ] Better unicode support
 // - [ ] Repeated argument detector.
 // - [ ] Case insensitve enum matching
 // - [ ] Bypassing flags (flags which bypass positional requirements, i.e.
@@ -95,6 +96,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <concepts>
 #include <cstddef>
 #include <cstring>
 #include <expected>
@@ -212,8 +214,6 @@ enum PositionalStatus { NotFound, Found };
 constexpr inline auto context = std::meta::access_context::current();
 
 // This is a static variable that stores heap-allocated error strings.
-// #TODO more testing to see if this results in effective use-after-frees due
-// to modifying the string that was returned to the program.
 thread_local inline std::string err_return_msg;
 
 /*---------------------------------------------------------------------------+
@@ -270,6 +270,55 @@ unknown_argument(const char* arg) {
   return std::unexpected(err_return_msg.c_str());
 }
 
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Type Concepts                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+[[nodiscard]] consteval inline bool is_optional_type(info type) noexcept {
+  return std::meta::has_template_arguments(type) &&
+         (std::meta::template_of(type) == ^^std::optional);
+}
+
+template <typename T>
+[[nodiscard]] consteval inline bool is_optional_type() noexcept {
+  return is_optional_type(^^T);
+}
+
+/// Optional arguments are either boolean and assumed to be a flag
+/// or wrapped in a std::optional
+template <std::meta::info type>
+[[nodiscard]] consteval bool is_optional() noexcept {
+  if (!std::meta::is_type(type)) { return false; }
+
+  if (type == ^^bool) { return true; }
+
+  return is_optional_type(type);
+}
+
+template <typename T>
+  requires(std::integral<T> || std::floating_point<T>) && (!std::same_as<T, bool>)
+[[nodiscard]] constexpr std::optional<T> parse_numeric(const char* str) noexcept {
+  if (!str) { return std::nullopt; }
+  size_t len = std::strlen(str);
+  T val;
+  auto result = std::from_chars(str, str + len, val);
+  if (!result) { return std::nullopt; }
+  if (result.ptr != (str + len)) {
+      return std::nullopt;
+  } else {
+      return val;
+  }
+}
+
+/*---------------------------------------------------------------------------+
+|                                                                            |
+|                               Value parsers                                |
+|                                                                            |
++---------------------------------------------------------------------------*/
+
+
 /// If a argument is a boolean type, if it exists at all it is true
 template <typename T>
   requires std::same_as<T, bool>
@@ -301,63 +350,20 @@ template <typename T>
   return std::nullopt;
 }
 
-/// Specialization of generic function parse_arg for numeric types
+/// Specialization of generic function parse_arg for integer types
 template <typename T>
   requires(std::integral<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] constexpr std::optional<T> parse_arg(const char* str) noexcept {
-  if (!str) { return std::nullopt; }
-  size_t len = std::strlen(str);
-  T val;
-  auto result = std::from_chars(str, str + len, val);
-  if (result) { return val; }
-  return std::nullopt;
+[[nodiscard]] constexpr inline std::optional<T> parse_arg(const char* str) noexcept {
+  return parse_numeric<T>(str);
 }
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Type Concepts                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-[[nodiscard]] consteval inline bool is_optional_type(info type) noexcept {
-  return std::meta::has_template_arguments(type) &&
-         (std::meta::template_of(type) == ^^std::optional);
-}
-
-template <typename T>
-[[nodiscard]] consteval inline bool is_optional_type() noexcept {
-  return is_optional_type(^^T);
-}
-
-/// Optional arguments are either boolean and assumed to be a flag
-/// or wrapped in a std::optional
-template <std::meta::info type>
-[[nodiscard]] consteval bool is_optional() noexcept {
-  if (!std::meta::is_type(type)) { return false; }
-
-  if (type == ^^bool) { return true; }
-
-  return is_optional_type(type);
-}
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
-|                               Value parsers                                |
-|                                                                            |
-+---------------------------------------------------------------------------*/
 
 /// Specialization of generic function parse_arg for floating point types
 /// not constexpr compatible because from_chars is not constexpr compatible for
 /// floating point types
 template <typename T>
   requires(std::floating_point<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] std::optional<T> parse_arg(const char* str) noexcept {
-  if (!str) { return std::nullopt; }
-  size_t len = std::strlen(str);
-  T val;
-  auto result = std::from_chars(str, str + len, val);
-  if (result) { return val; }
-  return std::nullopt;
+[[nodiscard]] inline std::optional<T> parse_arg(const char* str) noexcept {
+  return parse_numeric<T>(str);
 }
 
 /// Generic form of parse_arg for types that can be constructed from strings

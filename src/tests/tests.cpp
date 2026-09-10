@@ -12,6 +12,27 @@ TEST(HelloTest, FloatParsing) {
   EXPECT_EQ(val, 1.0f);
 }
 
+TEST(HelloTest, IntParsing) {
+    std::optional<int> result;
+    int val;
+  ASSERT_NO_THROW(result = claire::impl::parse_arg<int>("1"));
+  ASSERT_TRUE(result.has_value());
+  ASSERT_NO_THROW(val = *result);
+  EXPECT_EQ(val, 1.0);
+}
+
+TEST(HelloTest, IntPartialConsumption) {
+    std::optional<int> result;
+  ASSERT_NO_THROW(result = claire::impl::parse_arg<int>("1potato"));
+  ASSERT_FALSE(result.has_value());
+}
+
+TEST(HelloTest, FloatPartialConsumption) {
+    std::optional<float> result;
+  ASSERT_NO_THROW(result = claire::impl::parse_arg<float>("1.0potato"));
+  ASSERT_FALSE(result.has_value());
+}
+
 enum Colors {
     Black,
     Red,
