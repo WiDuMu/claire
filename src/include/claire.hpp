@@ -2,8 +2,93 @@
 |                                                                              |
 |       Claire: Command Line Arguments Interpretation Reflection Engine        |
 |                             (C) WiDuMu 2026                                  |
+|                                     0.2                                      |
 |                                                                              |
 +-----------------------------------------------------------------------------*/
+
+// This library implements a command line arguments parser similar to rust's
+// `clap`'s derive functionality. You provide a struct, and it generates a
+// helpstring, and argument parser for your struct type.
+//
+// WARNING: Currently parse_args returns a std::expected<T, const char*>
+// For errors that can be predicted at compile time, the error is a static
+// string. For error messages that have to be generated at runtime, the data is
+// owned by a thread-local internal object that can be overwritten by future
+// calls to parse_args. Be careful with lifetime management.
+//
+// USAGE:
+// #include <iostream>
+//
+// #include "claire.hpp"
+//
+// using claire::Description, claire::Shortname;
+//
+// struct
+// [[= Description("Greeting generator")]]
+// Args {
+//    [[= Description("Name to greet")]]
+//    std::string name;
+//    [[= Description("Print this help string"), = Shortname("h")]]
+//    bool help;
+//    [[= Description("Print version"), = Shortname("V")]]
+//    bool version;
+// };
+//
+// int main(int argc, const char** argv) {
+//    auto args_result = claire::parse_args<Args>(argc, argv);
+//
+//    if (!args_result) {
+//       std::cerr << args_result.error();
+//       return 1;
+//    }
+//
+//    auto args = *args_result;
+//
+//    if (args.version) {
+//       std::cout << "Greeting 1.0\n";
+//       return 0;
+//    }
+//
+//    if (args.help) {
+//       std::cout << claire::create_help_string<Args>();
+//       return 0;
+//    }
+//
+//    std::cout << "Hello, " << args.name << "\n";
+// }
+//
+// Which should output:
+// $ ./greet hello -h
+// Greeting generator
+//
+// USAGE: <name>
+//    name Name to greet
+// Options:
+//    -h --help Print this help string
+//    -V --version Print version
+
+//
+// Current To-Do List:
+// - [X] Optional positionals
+// - [ ] --arg=whatever handling
+// - [ ] Partial number consumption flag (accept/don't)
+// - [ ] Allocation reduction
+// - [ ] Bad Allocation exception errors
+// - [ ] Better Error Handling (struct type that doesn't alloc unless asked for)
+// - [ ] Vector/Array types, which allow/require a given number of paramters
+// - [ ] Repeated argument detector.
+// - [ ] Case insensitve enum matching
+// - [ ] Bypassing flags (flags which bypass positional requirements, i.e.
+// --help)
+// - [X] Unit Testing
+// - [ ] Subcommands
+// - [X] Proper enum types
+
+// List for clarification of position:
+// - [ ] Clustered short flags (this is incompatible with current paradigm,
+// which allows for short flags to be more than one character, making clustered
+// flags ambigous. However, create_help_string's formatting a short name is 1
+// character long.)
 
 #ifndef CLAIRE_HPP
 #define CLAIRE_HPP
@@ -29,6 +114,9 @@ namespace claire {
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+// WARNING: THIS FUNCTIONALITY IS BROKEN IN CURRENT BUILDS, IT IS AWAITING A
+// PARSER REWRITE.
+//
 /// Marks an optional argument as a "bypassing" argument.
 /// When one of these are detected, parsing ends as soon as the flag is
 /// detected. To avoid unintended behavior, bypassing arugments should be
@@ -110,7 +198,8 @@ struct ArgumentDeets {
 /// std::optional
 enum MatchStatus { NotMatched, Matched };
 
-/// Internal enum used to specify if parse_optionals found a positional argument or ran out first.
+/// Internal enum used to specify if parse_optionals found a positional argument
+/// or ran out first.
 enum PositionalStatus { NotFound, Found };
 
 /*---------------------------------------------------------------------------+
@@ -175,7 +264,7 @@ template <std::meta::info i, typename T>
 template <typename T>
 [[nodiscard]] constexpr inline std::expected<T, const char*>
 unknown_argument(const char* arg) {
-  err_return_msg = "Error: Unknown argument: ";
+  err_return_msg = "Error: unknown argument: ";
   err_return_msg += arg;
   err_return_msg += '\n';
   return std::unexpected(err_return_msg.c_str());
@@ -230,10 +319,25 @@ template <typename T>
 |                                                                            |
 +---------------------------------------------------------------------------*/
 
+[[nodiscard]] consteval inline bool is_optional_type(info type) noexcept {
+  return std::meta::has_template_arguments(type) &&
+         (std::meta::template_of(type) == ^^std::optional);
+}
+
 template <typename T>
 [[nodiscard]] consteval inline bool is_optional_type() noexcept {
-  return std::meta::has_template_arguments(^^T) &&
-         (std::meta::template_of(^^T) == ^^std::optional);
+  return is_optional_type(^^T);
+}
+
+/// Optional arguments are either boolean and assumed to be a flag
+/// or wrapped in a std::optional
+template <std::meta::info type>
+[[nodiscard]] consteval bool is_optional() noexcept {
+  if (!std::meta::is_type(type)) { return false; }
+
+  if (type == ^^bool) { return true; }
+
+  return is_optional_type(type);
 }
 
 /*---------------------------------------------------------------------------+
@@ -288,19 +392,6 @@ template <typename T>
   return s && s[0] != '\0';
 }
 
-/// Optional arguments are either boolean and assumed to be a flag
-/// or wrapped in a std::optional
-template <std::meta::info type>
-[[nodiscard]] consteval bool is_optional() noexcept {
-  if (!std::meta::is_type(type)) { return false; }
-
-  if (type == ^^bool) { return true; }
-
-  if (!std::meta::has_template_arguments(type)) { return false; }
-
-  return std::meta::template_of(type) == ^^std::optional;
-}
-
 /// Gets all fields of a struct, and creates a static array of the details
 template <typename T>
 [[nodiscard]] constexpr auto get_fields() noexcept {
@@ -313,7 +404,8 @@ template <typename T>
     constexpr info member_type = type_of(member);
     const char* member_name = define_static_string(identifier_of(member));
     const char* member_desc = extract_text_annotation<member, Description>();
-    const char* member_short_name = extract_text_annotation<member, Shortname>();
+    const char* member_short_name =
+        extract_text_annotation<member, Shortname>();
     bool opt = is_optional<member_type>();
     ParsePass pass = opt ? Option : Position;
     if (opt) {
@@ -350,7 +442,7 @@ template <typename T, ParsePass pass>
 }
 
 template <typename T, ArgumentDeets deets, size_t offset, const char* name>
-[[nodiscard]] constexpr inline expected<bool, const char*>
+[[nodiscard]] constexpr inline expected<MatchStatus, const char*>
 parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   constexpr constr err_parsing_msg = define_static_string(
       string{"Error: failed to parse argument '"} + name + "'\n");
@@ -381,9 +473,9 @@ template <typename T>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
-  bool unknown_arg = true;
 
   for (; argp < argc; argp++) {
+    bool unknown_arg = true;
     const char* arg = argv[argp];
 
     // Is it a optional argument?
@@ -432,9 +524,9 @@ template <typename T, ArgumentDeets deets>
 parse_positional(T& ret, int const argc, int& argp,
                  const char**& argv) noexcept {
   constexpr constr err_parsing_string = define_static_string(
-      string{"Error: Failed parsing argument "} + deets.long_name + '\n');
+      string{"Error: failed parsing argument "} + deets.long_name + '\n');
   constexpr constr err_not_exists_string = define_static_string(
-      string{"Error: Missing value for argument "} + deets.long_name + '\n');
+      string{"Error: missing value for argument "} + deets.long_name + '\n');
 
   auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
 
@@ -456,11 +548,11 @@ parse_positional(T& ret, int const argc, int& argp,
 }
 
 template <typename T, ArgumentDeets deets>
-[[nodiscard]] constexpr inline expected<bool, const char*>
+[[nodiscard]] constexpr inline expected<PositionalStatus, const char*>
 parse_optional_positional(T& ret, int const argc, int& argp,
                           const char**& argv) noexcept {
   constexpr constr err_parsing_string = define_static_string(
-      string{"Error: Failed parsing argument "} + deets.long_name + '\n');
+      string{"Error: failed parsing argument "} + deets.long_name + '\n');
 
   auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
 
@@ -468,20 +560,20 @@ parse_optional_positional(T& ret, int const argc, int& argp,
     return unexpected(optional_result.error());
   }
 
-  if (argp >= argc) { return true; }
+  if (argp >= argc) { return NotFound; }
 
   auto val = parse_arg<typename[:deets.type:]>(argv[argp]);
 
   if (val.has_value()) {
     argp++;
     ret.[:deets.val:] = *val;
-    return false;
+    return Found;
   }
 
   return unexpected(err_parsing_string);
 }
 
-}; // namespace impl
+} // namespace impl
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -493,7 +585,8 @@ parse_optional_positional(T& ret, int const argc, int& argp,
 template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] consteval const char* create_help_string() {
-  constexpr auto program_desc = impl::extract_text_annotation<^^T, Description>();
+  constexpr auto program_desc =
+      impl::extract_text_annotation<^^T, Description>();
   std::string s;
 
   if (impl::not_emptystring(program_desc)) {
@@ -553,7 +646,7 @@ template <typename T>
       s += "-";
       s += field.short_name;
     } else {
-      s += " ";
+      s += "  ";
     }
     s += " --";
     s += field.long_name;
@@ -581,7 +674,8 @@ parse_args(int argc, const char** argv) {
   // i.e. `--verbose`, or a optional i.e. `--logging-level verbose`, break,
   // process the positional, and continue.
   template for (constexpr auto field : positionals) {
-    auto positional_result = impl::parse_positional<T, field>(ret, argc, argp, argv);
+    auto positional_result =
+        impl::parse_positional<T, field>(ret, argc, argp, argv);
 
     if (!positional_result.has_value()) {
       return std::unexpected(positional_result.error());
@@ -596,7 +690,7 @@ parse_args(int argc, const char** argv) {
       return std::unexpected(optional_positional_result.error());
     }
 
-    if (optional_positional_result.value()) { break; }
+    if (optional_positional_result.value() == impl::NotFound) { break; }
   }
 
   if (argp < argc) { // More optionals exist

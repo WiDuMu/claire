@@ -184,3 +184,22 @@ TEST(HelloTest, OptionalPositionalsDontError) {
   Test5& v = *result;
   ASSERT_FALSE(v.a.has_value());
 }
+
+struct BoolFollowThroughTest {
+    bool verbose;
+    bool notused;
+    int num;
+};
+
+// This tests for a regression in the function parse_postionals where unknown_argument doesn't reset in the for loop
+TEST(HelloTest, UnknownArgBoolFallThroughError) {
+  std::vector<const char*> argj = {
+      "programname",
+      "--verbose",
+      "--wrong",
+      "4"
+  };
+  std::expected<BoolFollowThroughTest, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<BoolFollowThroughTest>(argj.size(), argj.data()));
+  ASSERT_FALSE(result) << '\n' << claire::create_help_string<Test5>();
+}
