@@ -24,28 +24,6 @@
 
 namespace claire {
 
-/// Extract the 'text' field from an annotated struct
-template <std::meta::info i, typename T>
-[[nodiscard]] consteval const char* extract_text_annotation() noexcept {
-  constexpr static auto shortnames = std::define_static_array(
-      std::meta::annotations_of_with_type(i, ^^const T));
-
-  template for (constexpr auto name : shortnames) {
-    constexpr const char* txt = std::meta::extract<const T>(name).text;
-    if (txt) { return txt; }
-  }
-
-  return std::define_static_string("");
-}
-
-/// Check if the given value has an annotation of the type given
-template <std::meta::info i, typename T>
-[[nodiscard]] consteval bool has_annotation_of_type() noexcept {
-  constexpr static auto annotations_length =
-      std::meta::annotations_of_with_type(i, ^^const T).size();
-  return annotations_length > 0;
-}
-
 /*---------------------------------------------------------------------------+
 |                                                                            |
 |                                  Structs                                   |
@@ -76,10 +54,6 @@ struct Description {
   // compiler will freak out if you don't define it
   [[nodiscard]] consteval Description(const std::string_view txt) noexcept
       : text(std::define_static_string(txt)) {}
-  template <std::meta::info i>
-  [[nodiscard]] consteval static const char* extract() noexcept {
-    return extract_text_annotation<i, Description>();
-  }
 };
 
 // Marks an optional field as a positional optional
@@ -99,10 +73,6 @@ struct Shortname {
   // compiler will freak out if you don't define it
   [[nodiscard]] consteval Shortname(const std::string_view txt) noexcept
       : text(std::define_static_string(txt)) {}
-  template <std::meta::info i>
-  [[nodiscard]] consteval static const char* extract() noexcept {
-    return extract_text_annotation<i, Shortname>();
-  }
 };
 
 /// Which pass this argument needs to be processed on
@@ -179,6 +149,28 @@ ascii_tolower(const std::string_view v) noexcept {
   std::transform(s.begin(), s.end(), s.begin(),
                  [](const char c) { return ascii_tolower(c); });
   return s;
+}
+
+/// Extract the 'text' field from an annotated struct
+template <std::meta::info i, typename T>
+[[nodiscard]] consteval const char* extract_text_annotation() noexcept {
+  constexpr static auto shortnames = std::define_static_array(
+      std::meta::annotations_of_with_type(i, ^^const T));
+
+  template for (constexpr auto name : shortnames) {
+    constexpr const char* txt = std::meta::extract<const T>(name).text;
+    if (txt) { return txt; }
+  }
+
+  return std::define_static_string("");
+}
+
+/// Check if the given value has an annotation of the type given
+template <std::meta::info i, typename T>
+[[nodiscard]] consteval bool has_annotation_of_type() noexcept {
+  constexpr static auto annotations_length =
+      std::meta::annotations_of_with_type(i, ^^const T).size();
+  return annotations_length > 0;
 }
 
 template <typename T>
@@ -321,8 +313,8 @@ template <typename T>
   template for (constexpr auto member : members) {
     constexpr info member_type = type_of(member);
     const char* member_name = define_static_string(identifier_of(member));
-    const char* member_desc = Description::extract<member>();
-    const char* member_short_name = Shortname::extract<member>();
+    const char* member_desc = extract_text_annotation<member, Description>();
+    const char* member_short_name = extract_text_annotation<member, Shortname>();
     bool opt = is_optional<member_type>();
     ParsePass pass = opt ? Option : Position;
     if (opt) {
@@ -494,19 +486,6 @@ parse_optional_positional(T& ret, int const argc, int& argp,
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
-|                              Helper functions                              |
-|                                                                            |
-+---------------------------------------------------------------------------*/
-
-using impl::get_pass_fields;
-using impl::not_emptystring;
-using impl::parse_arg;
-using impl::parse_optional_positional;
-using impl::parse_optionals;
-using impl::parse_positional;
-
-/*---------------------------------------------------------------------------+
-|                                                                            |
 |                               Main functions                               |
 |                                                                            |
 +---------------------------------------------------------------------------*/
@@ -515,19 +494,19 @@ using impl::parse_positional;
 template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] consteval const char* create_help_string() {
-  constexpr auto program_desc = Description::extract<^^T>();
+  constexpr auto program_desc = impl::extract_text_annotation<^^T, Description>();
   std::string s;
 
-  if (not_emptystring(program_desc)) {
+  if (impl::not_emptystring(program_desc)) {
     s += program_desc;
     s += "\n\n";
   }
 
   // #TODO handle optional positionals here
-  constexpr auto static positionals = get_pass_fields<T, Position>();
-  constexpr auto static optionals = get_pass_fields<T, Option>();
+  constexpr auto static positionals = impl::get_pass_fields<T, Position>();
+  constexpr auto static optionals = impl::get_pass_fields<T, Option>();
   constexpr auto static optionalPositionals =
-      get_pass_fields<T, OptionalPosition>();
+      impl::get_pass_fields<T, OptionalPosition>();
 
   if (positionals.size()) {
     s += "USAGE:";
@@ -548,7 +527,7 @@ template <typename T>
   }
 
   template for (constexpr auto field : positionals) {
-    if (not_emptystring(field.description)) {
+    if (impl::not_emptystring(field.description)) {
       s += "   ";
       s += field.long_name;
       s += " ";
@@ -558,7 +537,7 @@ template <typename T>
   }
 
   template for (constexpr auto field : optionalPositionals) {
-    if (not_emptystring(field.description)) {
+    if (impl::not_emptystring(field.description)) {
       s += "   ";
       s += field.long_name;
       s += " ";
@@ -592,9 +571,9 @@ template <typename T>
   requires std::is_class_v<T>
 [[nodiscard]] constexpr std::expected<T, const char*>
 parse_args(int argc, const char** argv) {
-  constexpr static auto positionals = get_pass_fields<T, Position>();
+  constexpr static auto positionals = impl::get_pass_fields<T, Position>();
   constexpr static auto optional_positionals =
-      get_pass_fields<T, OptionalPosition>();
+      impl::get_pass_fields<T, OptionalPosition>();
   T ret{};
   int argp = 1;
 
@@ -603,7 +582,7 @@ parse_args(int argc, const char** argv) {
   // i.e. `--verbose`, or a optional i.e. `--logging-level verbose`, break,
   // process the positional, and continue.
   template for (constexpr auto field : positionals) {
-    auto positional_result = parse_positional<T, field>(ret, argc, argp, argv);
+    auto positional_result = impl::parse_positional<T, field>(ret, argc, argp, argv);
 
     if (!positional_result.has_value()) {
       return std::unexpected(positional_result.error());
@@ -612,7 +591,7 @@ parse_args(int argc, const char** argv) {
 
   template for (constexpr auto opt_pos : optional_positionals) {
     auto optional_positional_result =
-        parse_optional_positional<T, opt_pos>(ret, argc, argp, argv);
+        impl::parse_optional_positional<T, opt_pos>(ret, argc, argp, argv);
 
     if (!optional_positional_result.has_value()) {
       return std::unexpected(optional_positional_result.error());
@@ -622,7 +601,7 @@ parse_args(int argc, const char** argv) {
   }
 
   if (argp < argc) { // More optionals exist
-    auto optional_result = parse_optionals<T>(ret, argc, argp, argv);
+    auto optional_result = impl::parse_optionals<T>(ret, argc, argp, argv);
     if (!optional_result.has_value()) {
       return std::unexpected(optional_result.error());
     }

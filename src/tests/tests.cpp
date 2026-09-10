@@ -6,7 +6,7 @@
 TEST(HelloTest, FloatParsing) {
     std::optional<float> result;
     float val;
-  ASSERT_NO_THROW(result = claire::parse_arg<float>("1.0"));
+  ASSERT_NO_THROW(result = claire::impl::parse_arg<float>("1.0"));
   ASSERT_TRUE(result.has_value());
   ASSERT_NO_THROW(val = *result);
   EXPECT_EQ(val, 1.0f);
@@ -22,14 +22,14 @@ enum Colors {
 
 TEST(HelloTest, EnumParsing) {
     std::optional<Colors> result;
-    ASSERT_NO_THROW(result = claire::parse_arg<Colors>("black"));
+    ASSERT_NO_THROW(result = claire::impl::parse_arg<Colors>("black"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(Colors::Black, *result);
 }
 
 TEST(HelloTest, EnumParsingFails) {
     std::optional<Colors> result;
-    ASSERT_NO_THROW(result = claire::parse_arg<Colors>("potato"));
+    ASSERT_NO_THROW(result = claire::impl::parse_arg<Colors>("potato"));
     ASSERT_FALSE(result.has_value());
 }
 
