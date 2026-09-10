@@ -1,10 +1,11 @@
+#include <expected>
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <optional>
 #include "claire.hpp"
 
 TEST(HelloTest, FloatParsing) {
-    std::optional<float> result;
+    std::expected<float, claire::ClaireError> result;
     float val;
   ASSERT_NO_THROW(result = claire::impl::parse_arg<float>("1.0"));
   ASSERT_TRUE(result.has_value());
@@ -21,14 +22,14 @@ enum Colors {
 };
 
 TEST(HelloTest, EnumParsing) {
-    std::optional<Colors> result;
+    std::expected<Colors, claire::ClaireError> result;
     ASSERT_NO_THROW(result = claire::impl::parse_arg<Colors>("black"));
     ASSERT_TRUE(result.has_value());
     ASSERT_EQ(Colors::Black, *result);
 }
 
 TEST(HelloTest, EnumParsingFails) {
-    std::optional<Colors> result;
+    std::expected<Colors, claire::ClaireError> result;
     ASSERT_NO_THROW(result = claire::impl::parse_arg<Colors>("potato"));
     ASSERT_FALSE(result.has_value());
 }
