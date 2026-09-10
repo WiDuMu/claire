@@ -136,10 +136,13 @@ struct ArgumentDeets {
   ParsePass pass;
 };
 
-/// Intenal enum used to check if a optional parser matched
-/// This could be a bool but I found the semantics diffucult when used with a
+/// Internal enum used to check if a optional parser matched
+/// This could be a bool but I found the semantics difficult when used with a
 /// std::optional
 enum MatchStatus { NotMatched, Matched };
+
+/// Internal enum used to specify if parse_optionals found a positional argument or ran out first.
+enum PositionalStatus { NotFound, Found };
 
 /*---------------------------------------------------------------------------+
 |                                                                            |
@@ -383,7 +386,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
 }
 
 template <typename T>
-[[nodiscard]] constexpr inline expected<MatchStatus, const char*>
+[[nodiscard]] constexpr inline expected<PositionalStatus, const char*>
 parse_optionals(T& ret, int const argc, int& argp,
                 const char**& argv) noexcept {
   constexpr static auto optionals = get_pass_fields<T, Option>();
@@ -411,7 +414,7 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) { return unknown_argument<bool>(arg); }
+        if (unknown_arg) { return unknown_argument<PositionalStatus>(arg); }
 
       } else if (arg[1] == '-' && arg[2] != '\0') { // Long flag
         template for (constexpr auto option : optionals) {
@@ -424,13 +427,13 @@ parse_optionals(T& ret, int const argc, int& argp,
           }
         }
 
-        if (unknown_arg) { return unknown_argument<bool>(arg); }
+        if (unknown_arg) { return unknown_argument<PositionalStatus>(arg); }
       }
     } else {
-      return true;
+      return Found;
     }
   }
-  return false;
+  return NotFound;
 }
 
 template <typename T, ArgumentDeets deets>
@@ -596,10 +599,9 @@ parse_args(int argc, const char** argv) {
   int argp = 1;
 
   // Iterate through the positional fields of the struct
-  // Iterate through the argugments, if we find a argument that isn't a flag
+  // Iterate through the arguments, if we find a argument that isn't a flag
   // i.e. `--verbose`, or a optional i.e. `--logging-level verbose`, break,
-  // process the positional, and continue. #TODO: currently a flag doesn't
-  // process correctly
+  // process the positional, and continue.
   template for (constexpr auto field : positionals) {
     auto positional_result = parse_positional<T, field>(ret, argc, argp, argv);
 
