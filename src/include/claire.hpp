@@ -472,7 +472,7 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
   // If we don't match, bail
   if (strncmp(name, arg, name_len)) { return NotMatched; }
 
-  const char* arg_value;
+  const char* arg_value = nullptr;
 
   if (arg[name_len] == '\0') {
     if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
@@ -480,6 +480,9 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
     arg_value = argv[argp];
   } else if (arg[name_len] ==
              '=') { // = handling for args. i.e. --file=filename
+    if (arg[name_len + 1] == '\0') {
+        return unexpected(err_missing_msg);
+    }
     arg_value = arg + name_len + 1;
   } else {
     return NotMatched;

@@ -250,3 +250,14 @@ TEST(HelloTest, EqualsHandling) {
   ASSERT_EQ(val.b, 4.0);
   ASSERT_EQ(val.e, "hi");
 }
+
+// This tests for equals handling in args i.e. --passes=2
+TEST(HelloTest, EqualsHandlingWithEmptyStringFails) {
+  std::vector<const char*> argj = {
+      "programname",
+      "--a=",
+  };
+  std::expected<EqualsHandlingTest, const char*> result;
+  ASSERT_NO_THROW(result = claire::parse_args<EqualsHandlingTest>(argj.size(), argj.data()));
+  ASSERT_FALSE(result) << '\n' << claire::create_help_string<EqualsHandlingTest>();
+}
