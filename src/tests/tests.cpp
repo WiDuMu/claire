@@ -222,5 +222,31 @@ TEST(HelloTest, UnknownArgBoolFallThroughError) {
   };
   std::expected<BoolFollowThroughTest, const char*> result;
   ASSERT_NO_THROW(result = claire::parse_args<BoolFollowThroughTest>(argj.size(), argj.data()));
-  ASSERT_FALSE(result) << '\n' << claire::create_help_string<Test5>();
+  ASSERT_FALSE(result) << '\n' << claire::create_help_string<BoolFollowThroughTest>();
+}
+
+struct EqualsHandlingTest {
+    std::optional<unsigned long long int> a;
+    std::optional<double> b;
+    std::optional<const char*> c;
+    std::optional<std::string_view> d;
+    std::optional<std::string> e;
+};
+
+// This tests for equals handling in args i.e. --passes=2
+TEST(HelloTest, EqualsHandling) {
+  std::vector<const char*> argj = {
+      "programname",
+      "--a=3",
+      "--b=4",
+      "--e=hi"
+  };
+  std::expected<EqualsHandlingTest, const char*> result;
+  EqualsHandlingTest val;
+  ASSERT_NO_THROW(result = claire::parse_args<EqualsHandlingTest>(argj.size(), argj.data()));
+  ASSERT_TRUE(result) << '\n' << claire::create_help_string<EqualsHandlingTest>();
+  ASSERT_NO_THROW(val = *result);
+  ASSERT_EQ(val.a, 3);
+  ASSERT_EQ(val.b, 4.0);
+  ASSERT_EQ(val.e, "hi");
 }

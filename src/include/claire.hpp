@@ -298,17 +298,19 @@ template <std::meta::info type>
 }
 
 template <typename T>
-  requires(std::integral<T> || std::floating_point<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] constexpr std::optional<T> parse_numeric(const char* str) noexcept {
+  requires(std::integral<T> || std::floating_point<T>) &&
+          (!std::same_as<T, bool>)
+[[nodiscard]] constexpr std::optional<T>
+parse_numeric(const char* str) noexcept {
   if (!str) { return std::nullopt; }
   size_t len = std::strlen(str);
   T val;
   auto result = std::from_chars(str, str + len, val);
   if (!result) { return std::nullopt; }
   if (result.ptr != (str + len)) {
-      return std::nullopt;
+    return std::nullopt;
   } else {
-      return val;
+    return val;
   }
 }
 
@@ -317,7 +319,6 @@ template <typename T>
 |                               Value parsers                                |
 |                                                                            |
 +---------------------------------------------------------------------------*/
-
 
 /// If a argument is a boolean type, if it exists at all it is true
 template <typename T>
@@ -353,7 +354,8 @@ template <typename T>
 /// Specialization of generic function parse_arg for integer types
 template <typename T>
   requires(std::integral<T>) && (!std::same_as<T, bool>)
-[[nodiscard]] constexpr inline std::optional<T> parse_arg(const char* str) noexcept {
+[[nodiscard]] constexpr inline std::optional<T>
+parse_arg(const char* str) noexcept {
   return parse_numeric<T>(str);
 }
 
@@ -454,19 +456,36 @@ parse_optional(T& ret, int const argc, int& argp, const char**& argv) noexcept {
       string{"Error: failed to parse argument '"} + name + "'\n");
   constexpr constr err_missing_msg = define_static_string(
       string{"Error: missing value for argument '"} + name + "'\n");
-
-  // If we don't match, bail
-  if (strcmp(name, argv[argp] + offset)) { return NotMatched; }
+  constexpr size_t name_len =
+      strlen(name); // This might want to be replaced with a string_view so we
+                    // have len available, but that requires a bigger refactor.
+  const char* arg = argv[argp] + offset;
 
   if constexpr (deets.type == ^^bool) {
+
+    if (strcmp(name, arg)) { return NotMatched; }
+
     ret.[:deets.val:] = true;
     return Matched;
   }
 
-  if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
+  // If we don't match, bail
+  if (strncmp(name, arg, name_len)) { return NotMatched; }
 
-  ++argp; // #TODO: add in = handling to args. i.e. --file=filename
-  auto result = parse_arg<typename[:deets.type:]>(argv[argp]);
+  const char* arg_value;
+
+  if (arg[name_len] == '\0') {
+    if ((argp + 1) >= argc) { return unexpected(err_missing_msg); }
+    ++argp;
+    arg_value = argv[argp];
+  } else if (arg[name_len] ==
+             '=') { // = handling for args. i.e. --file=filename
+    arg_value = arg + name_len + 1;
+  } else {
+    return NotMatched;
+  }
+
+  auto result = parse_arg<typename[:deets.type:]>(arg_value);
   if (result) {
     ret.[:deets.val:] = result.value();
     return Matched;
